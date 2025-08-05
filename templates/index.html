@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MP3 Artwork Manager for Traktor 3</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>MP3 Artwork Manager</h1>
+            <p class="subtitle">Optimize your MP3 artwork for Traktor 3</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="welcome-section">
+            <h2>Welcome to MP3 Artwork Manager</h2>
+            <p>This application helps you process MP3 files to meet Traktor 3 artwork specifications:</p>
+            <ul class="specs-list">
+                <li>Maximum dimensions: 500x500 pixels</li>
+                <li>Maximum file size: 500KB</li>
+                <li>Supported formats: JPEG, PNG</li>
+            </ul>
+        </section>
+
+        <section class="features-section">
+            <h3>Features</h3>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h4>🎵 File Processing</h4>
+                    <p>Process single MP3 files or entire folders</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🖼️ Artwork Optimization</h4>
+                    <p>Resize and optimize artwork to meet specifications</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🔍 Missing Artwork</h4>
+                    <p>Fetch missing artwork from MusicBrainz API</p>
+                </div>
+                <div class="feature-card">
+                    <h4>💾 Safe Processing</h4>
+                    <p>Original files remain unchanged</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="getting-started">
+            <h3>Getting Started</h3>
+            <p class="status-message">Application is starting up...</p>
+            <div class="coming-soon">
+                <p>🚧 File upload interface coming soon!</p>
+                <p>Currently implementing core functionality.</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 MP3 Artwork Manager - Phase 1 Development</p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html> 
