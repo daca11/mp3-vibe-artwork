@@ -3,65 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MP3 Artwork Manager for Traktor 3</title>
+    <title>MP3 Artwork Manager - Traktor 3 Ready</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <header>
-        <div class="container">
-            <h1>MP3 Artwork Manager</h1>
+    <div class="container">
+        <!-- Header Section -->
+        <header class="header">
+            <h1>🎵 MP3 Artwork Manager</h1>
             <p class="subtitle">Optimize your MP3 artwork for Traktor 3</p>
-        </div>
-    </header>
+        </header>
 
-    <main class="container">
-        <section class="welcome-section">
-            <h2>Welcome to MP3 Artwork Manager</h2>
-            <p>This application helps you process MP3 files to meet Traktor 3 artwork specifications:</p>
-            <ul class="specs-list">
-                <li>Maximum dimensions: 500x500 pixels</li>
-                <li>Maximum file size: 500KB</li>
-                <li>Supported formats: JPEG, PNG</li>
-            </ul>
-        </section>
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Upload Section -->
+            <section class="upload-section" id="uploadSection">
+                <h2>Upload MP3 Files</h2>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-content">
+                        <div class="upload-icon">📁</div>
+                        <h3>Drag & Drop MP3 Files Here</h3>
+                        <p>or click to select files</p>
+                        <input type="file" id="fileInput" multiple accept=".mp3,.MP3" style="display: none;">
+                        <button type="button" class="btn-primary" id="selectFilesBtn">Choose MP3 Files</button>
+                    </div>
+                </div>
+                <div class="upload-info">
+                    <p><strong>Requirements:</strong> MP3 files only, max 100MB per file</p>
+                </div>
+            </section>
 
-        <section class="features-section">
-            <h3>Features</h3>
-            <div class="features-grid">
-                <div class="feature-card">
-                    <h4>🎵 File Processing</h4>
-                    <p>Process single MP3 files or entire folders</p>
+            <!-- File List Section -->
+            <section class="file-list-section" id="fileListSection" style="display: none;">
+                <h2>Selected Files</h2>
+                <div class="file-list" id="fileList">
+                    <!-- Files will be populated here -->
                 </div>
-                <div class="feature-card">
-                    <h4>🖼️ Artwork Optimization</h4>
-                    <p>Resize and optimize artwork to meet specifications</p>
+                <div class="process-controls">
+                    <button type="button" class="btn-success" id="processBtn">Process Files</button>
+                    <button type="button" class="btn-secondary" id="clearBtn">Clear All</button>
                 </div>
-                <div class="feature-card">
-                    <h4>🔍 Missing Artwork</h4>
-                    <p>Fetch missing artwork from MusicBrainz API</p>
-                </div>
-                <div class="feature-card">
-                    <h4>💾 Safe Processing</h4>
-                    <p>Original files remain unchanged</p>
-                </div>
-            </div>
-        </section>
+            </section>
 
-        <section class="getting-started">
-            <h3>Getting Started</h3>
-            <p class="status-message">Application is starting up...</p>
-            <div class="coming-soon">
-                <p>🚧 File upload interface coming soon!</p>
-                <p>Currently implementing core functionality.</p>
-            </div>
-        </section>
-    </main>
+            <!-- Processing Section -->
+            <section class="processing-section" id="processingSection" style="display: none;">
+                <h2>Processing Files</h2>
+                <div class="progress-container">
+                    <div class="progress-bar" id="progressBar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">0% Complete</div>
+                </div>
+                <div class="current-file" id="currentFile">
+                    <p>Processing: <span id="currentFileName">-</span></p>
+                </div>
+                <div class="processing-log" id="processingLog">
+                    <!-- Processing updates will appear here -->
+                </div>
+            </section>
 
-    <footer>
-        <div class="container">
-            <p>&copy; 2025 MP3 Artwork Manager - Phase 1 Development</p>
-        </div>
-    </footer>
+            <!-- Results Section -->
+            <section class="results-section" id="resultsSection" style="display: none;">
+                <h2>Processing Complete</h2>
+                <div class="results-summary" id="resultsSummary">
+                    <!-- Summary will be populated here -->
+                </div>
+                <div class="results-list" id="resultsList">
+                    <!-- Results will be populated here -->
+                </div>
+                <div class="download-controls">
+                    <button type="button" class="btn-primary" id="downloadBtn">Download Processed Files</button>
+                    <button type="button" class="btn-secondary" id="startOverBtn">Process New Files</button>
+                </div>
+            </section>
+
+            <!-- Features Section -->
+            <section class="features-section">
+                <h2>Features</h2>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <h3>🖼️ Artwork Optimization</h3>
+                        <p>Automatically resize and optimize album artwork to meet Traktor 3 specifications (500x500px, 500KB max).</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>📝 Metadata Processing</h3>
+                        <p>Extract and preserve ID3 metadata while updating artwork. Parse filenames when metadata is missing.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>⚡ Batch Processing</h3>
+                        <p>Process multiple MP3 files simultaneously with real-time progress tracking.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>💾 Safe Processing</h3>
+                        <p>Original files remain untouched. Download optimized versions when processing is complete.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Getting Started Section -->
+            <section class="getting-started">
+                <h2>How It Works</h2>
+                <ol>
+                    <li><strong>Upload:</strong> Select your MP3 files using drag & drop or file picker</li>
+                    <li><strong>Review:</strong> Check file information and metadata</li>
+                    <li><strong>Process:</strong> Click "Process Files" to start optimization</li>
+                    <li><strong>Download:</strong> Get your Traktor 3-ready files</li>
+                </ol>
+                
+                <div class="specs-info">
+                    <h3>Traktor 3 Artwork Specifications</h3>
+                    <ul>
+                        <li>Maximum dimensions: 500x500 pixels</li>
+                        <li>Maximum file size: 500KB</li>
+                        <li>Supported formats: JPEG, PNG</li>
+                        <li>Aspect ratio preservation</li>
+                    </ul>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2024 MP3 Artwork Manager | Designed for Traktor 3</p>
+        </footer>
+    </div>
+
+    <!-- Status Messages -->
+    <div class="status-messages" id="statusMessages">
+        <!-- Status messages will appear here -->
+    </div>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
