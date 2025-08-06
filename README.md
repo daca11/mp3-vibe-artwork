@@ -95,11 +95,8 @@ source venv/bin/activate
 # Run Phase 1 regression tests
 python test_phase1.py
 
-# Run Phase 2.1 regression tests (MP3 File Handling)
-python test_phase2_1.py
-
-# Run Phase 2.2 regression tests (Image Processing)
-python test_phase2_2.py
+# Run Phase 2 unified regression tests (MP3 File Handling + Image Processing)
+python test_phase2.py
 ```
 
 These tests should be run whenever making changes to verify that existing functionality hasn't been broken.
