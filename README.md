@@ -94,6 +94,12 @@ source venv/bin/activate
 
 # Run Phase 1 regression tests
 python test_phase1.py
+
+# Run Phase 2.1 regression tests (MP3 File Handling)
+python test_phase2_1.py
+
+# Run Phase 2.2 regression tests (Image Processing)
+python test_phase2_2.py
 ```
 
 These tests should be run whenever making changes to verify that existing functionality hasn't been broken.
@@ -106,4 +112,15 @@ This project is currently in development. See `TODO.md` for implementation progr
 - Project structure ✅
 - Dependencies ✅ 
 - Basic Flask application ✅
-- HTML template with styling ✅ 
+- HTML template with styling ✅
+
+**Phase 2.1: Complete** ✅ - MP3 File Handling
+- MP3 file detection and validation ✅
+- ID3 metadata extraction ✅
+- Artwork extraction from MP3s ✅
+
+**Phase 2.2: Complete** ✅ - Basic Image Processing  
+- Artwork validation (Traktor 3 specs) ✅
+- Image resizing with aspect ratio preservation ✅
+- File size optimization ✅
+- Format conversion (JPEG/PNG) ✅ 
