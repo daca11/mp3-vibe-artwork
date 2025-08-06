@@ -129,7 +129,7 @@ def test_unique_filename_generation():
         
         # Test with existing file
         unique_path = file_ops.generate_unique_filename(temp_path, "test.mp3")
-        expected_unique = temp_path / "test_001.mp3"
+        expected_unique = temp_path / "test (1).mp3"
         
         if unique_path == expected_unique:
             print("✅ Existing file conflict: Generated unique filename")
@@ -139,10 +139,10 @@ def test_unique_filename_generation():
         
         # Create multiple conflicts
         expected_unique.touch()
-        (temp_path / "test_002.mp3").touch()
+        (temp_path / "test (2).mp3").touch()
         
         unique_path = file_ops.generate_unique_filename(temp_path, "test.mp3")
-        expected_unique2 = temp_path / "test_003.mp3"
+        expected_unique2 = temp_path / "test (3).mp3"
         
         if unique_path == expected_unique2:
             print("✅ Multiple conflicts: Generated next available filename")
@@ -261,6 +261,7 @@ def test_filename_parsing():
         ("Artist_Name_-_Song_Title.mp3", "Artist Name", "Song Title", True),
         ("01. Artist - Song.mp3", "Artist", "Song", True),  # Track number
         ("Artist - Song [320kbps].mp3", "Artist", "Song", True),  # Quality indicator
+        ("02-Inkswel & Colonel Red - Make Me Crazy (Potatohead People Remix) [Only Good Stuff].mp3", "Inkswel & Colonel Red", "Make Me Crazy (Potatohead People Remix) [Only Good Stuff]", True),  # User's specific example
         ("Just A Filename.mp3", None, None, False),  # No separator
         ("", None, None, False),  # Empty filename
     ]
@@ -285,6 +286,40 @@ def test_filename_parsing():
     
     success = passed_tests == len(test_cases)
     print(f"Filename parsing results: {passed_tests}/{len(test_cases)} tests passed")
+    
+    return success
+
+def test_output_filename_generation():
+    """Test proper output filename generation using Artist - Title convention"""
+    print("\nTesting output filename generation...")
+    
+    file_ops = FileOperations()
+    
+    # Test cases: (artist, title, expected_filename)
+    test_cases = [
+        ("Inkswel & Colonel Red", "Make Me Crazy (Potatohead People Remix)", "Inkswel & Colonel Red - Make Me Crazy (Potatohead People Remix).mp3"),
+        ("The Beatles", "Yesterday", "The Beatles - Yesterday.mp3"),
+        ("Artist/Name", "Song:Title", "Artist-Name - Song-Title.mp3"),  # Test sanitization
+        (None, "Title Only", "Unknown Artist - Title Only.mp3"),  # Missing artist
+        ("Artist Only", None, "Artist Only - Unknown Title.mp3"),  # Missing title
+        ("", "", "Unknown Artist - Unknown Title.mp3"),  # Both missing
+        ("Artist with \"quotes\"", "Song [Version]", "Artist with 'quotes - Song [Version].mp3"),  # Test quotes and brackets (quotes get sanitized)
+        ("Inkswel & Colonel Red", "Make Me Crazy (Potatohead People Remix) [Only Good Stuff]", "Inkswel & Colonel Red - Make Me Crazy (Potatohead People Remix) [Only Good Stuff].mp3"),  # User's specific example
+    ]
+    
+    passed_tests = 0
+    
+    for artist, title, expected_filename in test_cases:
+        result = file_ops.generate_output_filename(artist, title)
+        
+        if result == expected_filename:
+            print(f"✅ Filename generation '{artist}' - '{title}': Correctly generated '{result}'")
+            passed_tests += 1
+        else:
+            print(f"❌ Filename generation '{artist}' - '{title}': Expected '{expected_filename}', got '{result}'")
+    
+    success = passed_tests == len(test_cases)
+    print(f"Filename generation results: {passed_tests}/{len(test_cases)} tests passed")
     
     return success
 
@@ -353,6 +388,7 @@ def main():
         ("Artwork Embedding", test_artwork_embedding),
         ("MP3 File Copying", test_mp3_file_copying),
         ("Filename Parsing", test_filename_parsing),
+        ("Output Filename Generation", test_output_filename_generation),
         ("Complete Processing Pipeline", test_complete_processing_pipeline)
     ]
     

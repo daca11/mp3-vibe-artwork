@@ -20,6 +20,7 @@ DJs and music enthusiasts who use Traktor 3 and need their MP3 collection to hav
 - **File Scope**: Process files only in the selected folder (no subdirectory recursion)
 - **File Size**: No file size limits imposed by the application
 - **Output**: Create processed files in a separate output folder (original files remain unmodified)
+- **Output Filename Convention**: Use "Artist - Title.mp3" format based on extracted metadata or parsed filename
 
 #### 2.1.2 Artwork Processing
 - **Target Specifications**: 
