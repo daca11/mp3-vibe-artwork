@@ -10,5 +10,5 @@ Characteristics:
 - user must be able to select which artwork to save in the id3 tags, either the existing embedded one or the ones found by the MusicBrainz API
 - app will generate the resulting output file preserving the original filename but with the selected artwork embedded in the id3 tags
 - artwork should be max dimensions of 500x500px, maximum size 500kb, format jgeg or png. If the artwork already embedded exceeds those dimensions or size, reduce the dimensions until both criterias are met and replace the artwork with the resized one. If the artwork retrieved from musicbrainz does not meet the criterias, resize them and embed the resized artwork in the id3 tags of the song.
-- app should query musicbrainz api with the artist and title id3 tags from the file, or as fallback if there is none or no results, detect the artist and title from the filename
+- app should query musicbrainz api with the artist and title id3 tags from the file, or as fallback if there is none or no results from MusicBrainz API, detect the artist and title from the filename
 - any processing errors should be visible in the application log
