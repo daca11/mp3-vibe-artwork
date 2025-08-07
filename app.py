@@ -18,6 +18,9 @@ from processors.artwork_processor import ArtworkProcessor
 from processors.error_handler import error_handler, ErrorCategory, ErrorSeverity
 import time
 
+# Set up logging
+logger = logging.getLogger(__name__)
+
 # Initialize Flask application
 app = Flask(__name__)
 
