@@ -206,8 +206,9 @@ function displayFileList() {
         
         fileItem.innerHTML = `
             <div class="file-info">
-                <div class="file-name">${file.original_filename}</div>
-                <div class="file-metadata">${metadata.length > 0 ? metadata.join(' • ') : 'No metadata available'}</div>
+                <div class="file-name">${file.filename || file.original_filename || 'Unknown file'}</div>
+                <div class="file-metadata">${metadata.length > 0 ? metadata.join(' • ') : 'Metadata will be extracted during processing'}</div>
+                <div class="file-size">${Utils.formatFileSize(file.size || 0)}</div>
                 ${file.error ? `<div class="file-error" style="color: #dc3545; font-size: 0.8rem;">${file.error}</div>` : ''}
             </div>
             <div class="file-actions">
@@ -215,7 +216,7 @@ function displayFileList() {
                     🎨 Select Artwork
                 </button>
             </div>
-            <div class="file-status status-${file.status}">${file.status}</div>
+            <div class="file-status status-${file.status || 'uploaded'}">${Utils.formatStatus(file.status || 'uploaded')}</div>
         `;
         
         fileList.appendChild(fileItem);
@@ -524,6 +525,24 @@ const Utils = {
         // Check file extension as fallback
         const fileName = file.name.toLowerCase();
         return validExtensions.some(ext => fileName.endsWith(ext.toLowerCase()));
+    },
+    
+    /**
+     * Format status for display
+     * @param {string} status - The status to format
+     * @returns {string} Formatted status
+     */
+    formatStatus: function(status) {
+        const statusMap = {
+            'uploaded': 'Uploaded',
+            'processing': 'Processing...',
+            'completed': 'Completed',
+            'failed': 'Failed',
+            'pending': 'Pending',
+            'error': 'Error'
+        };
+        
+        return statusMap[status] || status.charAt(0).toUpperCase() + status.slice(1);
     }
 }; 
 
@@ -568,7 +587,7 @@ function displayArtworkModal(data, sessionId, fileIndex) {
                         <img src="${data.current_artwork.data_url}" alt="Current artwork" />
                                                  <div class="artwork-info">
                              <p>Format: ${data.current_artwork.format}</p>
-                             <p>Size: ${formatFileSize(data.current_artwork.size_bytes)}</p>
+                             <p>Size: ${Utils.formatFileSize(data.current_artwork.size_bytes)}</p>
                          </div>
                     </div>` : 
                     '<p class="no-artwork">No current artwork</p>'
