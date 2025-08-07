@@ -185,7 +185,7 @@ requests>=2.25.0
 
 ### 8.1 Development
 - Run locally using Flask development server
-- Access via `http://localhost:5000`
+- Access via `http://localhost:5001`
 
 ### 8.2 Production Considerations
 - Use production WSGI server (Gunicorn, uWSGI)

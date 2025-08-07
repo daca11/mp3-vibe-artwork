@@ -19,7 +19,7 @@
 ### 1.2 Basic Flask Application
 - [x] **Create minimal Flask app with routing**
   - **Acceptance Criteria**: 
-    - ✅ Flask app starts on localhost:5000
+    - ✅ Flask app starts on localhost:5001
     - ✅ Basic route (/) returns HTML template (plus /hello route for testing)
     - ✅ App can be stopped and restarted without issues
 

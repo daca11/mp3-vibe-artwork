@@ -44,7 +44,7 @@ The MP3 Artwork Manager automatically processes your MP3 files to ensure their a
 ### Step 1: Upload Your Files
 
 1. **Open the Application**
-   - Navigate to the web interface (typically `http://localhost:5000`)
+   - Navigate to the web interface (typically `http://localhost:5001`)
    - You'll see the main upload page
 
 2. **Select Files**
