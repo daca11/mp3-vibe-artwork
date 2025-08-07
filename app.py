@@ -21,6 +21,24 @@ import time
 # Set up logging
 logger = logging.getLogger(__name__)
 
+def safe_filename(filename):
+    """
+    Create a safe filename that preserves the original name while preventing security issues.
+    Only prevents directory traversal - does not sanitize special characters.
+    """
+    if not filename:
+        return None
+
+    # Remove any directory path components to prevent traversal
+    # Handle both Unix (/) and Windows (\) path separators
+    safe_name = os.path.basename(filename.replace('\\', '/'))
+
+    # Ensure we still have a valid filename and no path separators remain
+    if not safe_name or safe_name in ('.', '..') or '/' in safe_name or '\\' in safe_name:
+        return None
+        
+    return safe_name
+
 def create_app(config_name='default'):
     """Application factory pattern for different configurations"""
     from config import config
@@ -49,24 +67,6 @@ def register_routes(app):
     
     # Global session storage
     processing_sessions = {}
-    
-    def safe_filename(filename):
-        """
-        Create a safe filename that preserves the original name while preventing security issues.
-        Only prevents directory traversal - does not sanitize special characters.
-        """
-        if not filename:
-            return None
-    
-        # Remove any directory path components to prevent traversal
-        # Handle both Unix (/) and Windows (\) path separators
-        safe_name = os.path.basename(filename.replace('\\', '/'))
-    
-        # Ensure we still have a valid filename and no path separators remain
-        if not safe_name or safe_name in ('.', '..') or '/' in safe_name or '\\' in safe_name:
-            return None
-            
-        return safe_name
     
     @app.route('/')
     def index():
