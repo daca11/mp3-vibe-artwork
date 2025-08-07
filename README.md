@@ -41,7 +41,7 @@ pip install -r requirements.txt
 python app.py
 
 # Open browser and navigate to:
-# http://localhost:5000
+# http://localhost:5001
 ```
 
 ### 4. Deactivating Virtual Environment
@@ -77,7 +77,7 @@ mp3-vibe-artwork/
 ## Usage
 
 1. Start the application using `python app.py`
-2. Open your browser to `http://localhost:5000`
+2. Open your browser to `http://localhost:5001`
 3. Select MP3 files or a folder containing MP3 files
 4. Review and select artwork options when prompted
 5. Download processed files from the output folder
