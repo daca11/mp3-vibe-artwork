@@ -139,8 +139,12 @@ async function uploadFiles(files) {
         
         if (response.ok) {
             currentSession = result.session_id;
-            uploadedFiles = result.files;
-            showStatusMessage(`Successfully uploaded ${result.total_files} files`, 'success');
+            // Backend doesn't return files array, we'll fetch it via status endpoint
+            uploadedFiles = [];
+            showStatusMessage(`Successfully uploaded ${result.files_uploaded} files`, 'success');
+            
+            // Fetch the actual file list from the session status
+            await fetchFileList();
             displayFileList();
             showSection('fileListSection');
         } else {
@@ -152,6 +156,30 @@ async function uploadFiles(files) {
 }
 
 /**
+ * Fetch file list from session status
+ */
+async function fetchFileList() {
+    if (!currentSession) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/status/${currentSession}`);
+        const sessionData = await response.json();
+        
+        if (response.ok && sessionData.files) {
+            uploadedFiles = sessionData.files;
+        } else {
+            console.warn('No files in session data:', sessionData);
+            uploadedFiles = [];
+        }
+    } catch (error) {
+        console.error('Error fetching file list:', error);
+        uploadedFiles = [];
+    }
+}
+
+/**
  * Display the list of uploaded files
  */
 function displayFileList() {
@@ -159,6 +187,12 @@ function displayFileList() {
     if (!fileList) return;
     
     fileList.innerHTML = '';
+    
+    // Safety check for uploadedFiles
+    if (!uploadedFiles || !Array.isArray(uploadedFiles)) {
+        fileList.innerHTML = '<p>No files uploaded yet.</p>';
+        return;
+    }
     
     uploadedFiles.forEach((file, index) => {
         const fileItem = document.createElement('div');
