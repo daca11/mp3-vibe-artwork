@@ -1,0 +1,6 @@
+---
+alwaysApply: true
+---
+# Git commit
+
+- git commit message should not exceed 72 characters

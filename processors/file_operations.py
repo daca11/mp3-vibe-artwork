@@ -566,20 +566,108 @@ class FileOperations:
         
         return result 
 
-    def search_artwork_online(self, metadata: Dict, parsed_info: Dict = None) -> Optional[Tuple[bytes, str]]:
+    def process_mp3_file_with_choice(self, source_path: Path, output_dir: Optional[Path] = None,
+                                   user_artwork_choice: Optional[Dict] = None) -> Dict[str, Union[bool, str, Path, Dict]]:
+        """
+        Process MP3 file with user-selected artwork choice.
+        
+        Args:
+            source_path: Source MP3 file path
+            output_dir: Output directory (creates default if None)
+            user_artwork_choice: User's artwork selection with 'artwork_url' or 'skip_artwork'
+            
+        Returns:
+            Dictionary with comprehensive processing results
+        """
+        # Start with normal processing
+        result = self.process_mp3_file(source_path, output_dir, process_artwork=False)
+        
+        # If basic processing failed, return early
+        if not result['success']:
+            return result
+        
+        # Handle user artwork choice
+        if user_artwork_choice and not user_artwork_choice.get('skip_artwork', False):
+            artwork_url = user_artwork_choice.get('artwork_url')
+            
+            if artwork_url and self.enable_musicbrainz and self.musicbrainz_client:
+                try:
+                    result['processing_steps'].append("Downloading user-selected artwork")
+                    
+                    # Download the selected artwork
+                    artwork_data = self.musicbrainz_client.download_artwork(artwork_url)
+                    
+                    if artwork_data:
+                        # Process artwork to ensure compliance
+                        artwork_result = self.artwork_processor.process_artwork(
+                            artwork_data,
+                            force_compliance=True
+                        )
+                        
+                        if artwork_result['is_compliant'] and artwork_result['processed_data']:
+                            # Embed the processed artwork
+                            output_path = result['output_path']
+                            success = self.embed_artwork_in_mp3(
+                                output_path, 
+                                artwork_result['processed_data'],
+                                "image/jpeg"
+                            )
+                            
+                            if success:
+                                result['artwork_info'] = {
+                                    'had_original': result.get('artwork_info', {}).get('had_original', False),
+                                    'was_compliant': False,
+                                    'processing_needed': True,
+                                    'processing_successful': True,
+                                    'musicbrainz_searched': True,
+                                    'musicbrainz_found': True,
+                                    'user_selected': True,
+                                    'selected_url': artwork_url
+                                }
+                                result['processing_steps'].append("User-selected artwork embedded successfully")
+                                logger.info(f"Successfully embedded user-selected artwork from: {artwork_url}")
+                            else:
+                                logger.warning(f"Failed to embed user-selected artwork in: {output_path}")
+                        else:
+                            logger.warning(f"User-selected artwork could not be processed to compliance")
+                    else:
+                        logger.warning(f"Failed to download user-selected artwork from: {artwork_url}")
+                        
+                except Exception as e:
+                    logger.error(f"Error processing user-selected artwork: {e}")
+        
+        elif user_artwork_choice and user_artwork_choice.get('skip_artwork', False):
+            # User chose to skip artwork
+            result['artwork_info'] = {
+                'had_original': result.get('artwork_info', {}).get('had_original', False),
+                'was_compliant': False,
+                'processing_needed': False,
+                'processing_successful': False,
+                'musicbrainz_searched': False,
+                'musicbrainz_found': False,
+                'user_skipped': True
+            }
+            result['processing_steps'].append("User chose to skip artwork processing")
+            logger.info("User chose to skip artwork for this file")
+        
+        return result
+    
+    def search_artwork_online(self, metadata: Dict, parsed_info: Dict = None, return_options: bool = False) -> Union[Optional[Tuple[bytes, str]], List[Dict]]:
         """
         Search for artwork online using MusicBrainz.
         
         Args:
             metadata: Extracted MP3 metadata
             parsed_info: Parsed filename information (fallback)
+            return_options: If True, returns list of artwork options instead of downloading
             
         Returns:
-            Tuple of (artwork_data, mime_type) or None if not found
+            If return_options=False: Tuple of (artwork_data, mime_type) or None if not found
+            If return_options=True: List of artwork option dictionaries
         """
         if not self.enable_musicbrainz or not self.musicbrainz_client:
             logger.debug("MusicBrainz search disabled or client unavailable")
-            return None
+            return [] if return_options else None
         
         try:
             # Extract search parameters from metadata (handle None metadata)
@@ -607,7 +695,7 @@ class FileOperations:
                 logger.debug("No artist information available for MusicBrainz search")
                 logger.debug(f"Metadata: {metadata}")
                 logger.debug(f"Parsed info: {parsed_info}")
-                return None
+                return [] if return_options else None
             
             logger.info(f"Searching MusicBrainz for artwork: {artist} - {album or title or 'Unknown'}")
             logger.debug(f"Search parameters - Artist: '{artist}', Album: '{album}', Title: '{title}'")
@@ -623,44 +711,68 @@ class FileOperations:
             
             if not releases:
                 logger.info("No releases found in MusicBrainz search")
-                return None
+                return [] if return_options else None
             
-            # Try to download artwork from the best match
-            for release in releases[:3]:  # Try top 3 matches
+            # Collect all artwork options
+            artwork_options = []
+            
+            for release in releases[:5]:  # Limit to top 5 releases
                 artwork_urls = release.get('artwork_urls', [])
                 
                 if not artwork_urls:
                     logger.debug(f"No artwork URLs for release: {release['title']}")
                     continue
                 
-                # Prefer front cover, then any image
-                for artwork in artwork_urls:
-                    if artwork.get('is_front', False) or len(artwork_urls) == 1:
-                        try:
-                            # Try thumbnail first (already optimized size), then full image
-                            url = artwork.get('thumbnail_url') or artwork.get('image_url')
-                            if not url:
-                                continue
-                            
-                            logger.info(f"Downloading artwork from: {url}")
-                            artwork_data = self.musicbrainz_client.download_artwork(url)
-                            
-                            if artwork_data:
-                                # Determine MIME type from URL or use JPEG as default
-                                mime_type = "image/jpeg"
-                                if url.lower().endswith('.png'):
-                                    mime_type = "image/png"
-                                
-                                logger.info(f"Successfully downloaded artwork: {len(artwork_data)} bytes")
-                                return (artwork_data, mime_type)
-                            
-                        except Exception as e:
-                            logger.warning(f"Failed to download artwork from {url}: {e}")
-                            continue
+                # Process each artwork option
+                for artwork in artwork_urls[:3]:  # Max 3 artworks per release
+                    option = {
+                        'release_id': release['id'],
+                        'release_title': release['title'],
+                        'release_artist': release['artist'],
+                        'release_date': release.get('date', ''),
+                        'artwork_url': artwork.get('image_url', ''),
+                        'thumbnail_url': artwork.get('thumbnail_url', ''),
+                        'is_front': artwork.get('is_front', False),
+                        'types': artwork.get('types', []),
+                        'width': artwork.get('width'),
+                        'height': artwork.get('height'),
+                        'comment': artwork.get('comment', ''),
+                        'approved': artwork.get('approved', False)
+                    }
+                    artwork_options.append(option)
+            
+            # Sort options by preference (front covers first, approved first, larger images)
+            artwork_options.sort(key=lambda x: (
+                0 if x['is_front'] else 1,
+                0 if x['approved'] else 1,
+                -(x['width'] or 0)
+            ))
+            
+            logger.info(f"Found {len(artwork_options)} artwork options")
+            
+            if return_options:
+                return artwork_options
+            
+            # Legacy behavior: download the first/best option
+            if artwork_options:
+                best_option = artwork_options[0]
+                url = best_option['thumbnail_url'] or best_option['artwork_url']
+                if url:
+                    logger.info(f"Downloading artwork from: {url}")
+                    artwork_data = self.musicbrainz_client.download_artwork(url)
+                    
+                    if artwork_data:
+                        # Determine MIME type from URL or use JPEG as default
+                        mime_type = "image/jpeg"
+                        if url.lower().endswith('.png'):
+                            mime_type = "image/png"
+                        
+                        logger.info(f"Successfully downloaded artwork: {len(artwork_data)} bytes")
+                        return (artwork_data, mime_type)
             
             logger.info("No suitable artwork found in MusicBrainz results")
-            return None
+            return [] if return_options else None
             
         except Exception as e:
             logger.error(f"Error during MusicBrainz artwork search: {e}")
-            return None 
+            return [] if return_options else None 

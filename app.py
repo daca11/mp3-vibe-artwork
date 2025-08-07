@@ -182,8 +182,16 @@ def process_files(session_id):
                 file_info['status'] = 'processing'
                 session_data['current_file'] = i
                 
-                # Process the file
-                result = file_ops.process_mp3_file(file_path, output_dir, process_artwork=True)
+                # Check for user artwork choice
+                user_choice = None
+                if 'artwork_choices' in session_data and i in session_data['artwork_choices']:
+                    user_choice = session_data['artwork_choices'][i]
+                
+                # Process the file with user choice if available
+                if user_choice:
+                    result = file_ops.process_mp3_file_with_choice(file_path, output_dir, user_choice)
+                else:
+                    result = file_ops.process_mp3_file(file_path, output_dir, process_artwork=True)
                 
                 if result['success']:
                     file_info['status'] = 'completed'
@@ -315,6 +323,132 @@ def validate_files():
         
     except Exception as e:
         return jsonify({'error': f'Validation failed: {str(e)}'}), 500
+
+@app.route('/api/artwork-options/<session_id>/<file_index>', methods=['GET'])
+def get_artwork_options(session_id, file_index):
+    """Get artwork options for a specific file"""
+    try:
+        if session_id not in processing_sessions:
+            return jsonify({'error': 'Invalid session ID'}), 404
+        
+        session_data = processing_sessions[session_id]
+        file_index = int(file_index)
+        
+        if file_index >= len(session_data['files']):
+            return jsonify({'error': 'Invalid file index'}), 404
+        
+        file_info = session_data['files'][file_index]
+        file_path = Path(file_info['file_path'])
+        
+        # Extract metadata and parse filename
+        metadata = mp3_handler.extract_metadata(file_path)
+        parsed_info = file_ops.parse_filename_for_metadata(file_path.name) if not metadata.get('artist') else None
+        
+        # Get artwork options from MusicBrainz
+        artwork_options = file_ops.search_artwork_online(metadata, parsed_info, return_options=True)
+        
+        # Get current artwork info if any
+        current_artwork = mp3_handler.extract_artwork(file_path)
+        current_artwork_info = None
+        
+        if current_artwork:
+            current_artwork_info = {
+                'has_artwork': True,
+                'format': current_artwork['format'],
+                'size_bytes': len(current_artwork['data']),
+                'description': current_artwork.get('description', ''),
+                'data_url': f"data:{current_artwork['format']};base64," + 
+                           __import__('base64').b64encode(current_artwork['data']).decode()
+            }
+        
+        return jsonify({
+            'file_info': {
+                'filename': file_info['filename'],
+                'artist': metadata.get('artist') or (parsed_info.get('artist') if parsed_info else None),
+                'title': metadata.get('title') or (parsed_info.get('title') if parsed_info else None),
+                'album': metadata.get('album')
+            },
+            'current_artwork': current_artwork_info,
+            'artwork_options': artwork_options
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting artwork options: {e}")
+        return jsonify({'error': f'Failed to get artwork options: {str(e)}'}), 500
+
+@app.route('/api/artwork-preview', methods=['POST'])
+def preview_artwork():
+    """Preview how artwork will look after processing"""
+    try:
+        data = request.get_json()
+        artwork_url = data.get('artwork_url')
+        
+        if not artwork_url:
+            return jsonify({'error': 'Artwork URL required'}), 400
+        
+        # Download the artwork
+        artwork_data = file_ops.musicbrainz_client.download_artwork(artwork_url) if file_ops.musicbrainz_client else None
+        
+        if not artwork_data:
+            return jsonify({'error': 'Failed to download artwork'}), 400
+        
+        # Process artwork to show compliance preview
+        artwork_result = artwork_processor.process_artwork(artwork_data, force_compliance=True)
+        
+        if not artwork_result['is_compliant']:
+            return jsonify({'error': 'Artwork could not be made compliant'}), 400
+        
+        # Return preview information
+        preview_info = {
+            'original_size_bytes': len(artwork_data),
+            'processed_size_bytes': len(artwork_result['processed_data']),
+            'is_compliant': artwork_result['is_compliant'],
+            'was_resized': artwork_result['was_resized'],
+            'was_optimized': artwork_result['was_optimized'],
+            'final_dimensions': artwork_result.get('final_dimensions', {}),
+            'processing_applied': artwork_result.get('processing_applied', []),
+            'preview_data_url': f"data:image/jpeg;base64," + 
+                              __import__('base64').b64encode(artwork_result['processed_data']).decode()
+        }
+        
+        return jsonify(preview_info)
+        
+    except Exception as e:
+        logger.error(f"Error previewing artwork: {e}")
+        return jsonify({'error': f'Failed to preview artwork: {str(e)}'}), 500
+
+@app.route('/api/select-artwork/<session_id>/<file_index>', methods=['POST'])
+def select_artwork(session_id, file_index):
+    """Select artwork for a specific file"""
+    try:
+        if session_id not in processing_sessions:
+            return jsonify({'error': 'Invalid session ID'}), 404
+        
+        session_data = processing_sessions[session_id]
+        file_index = int(file_index)
+        
+        if file_index >= len(session_data['files']):
+            return jsonify({'error': 'Invalid file index'}), 404
+        
+        data = request.get_json()
+        artwork_url = data.get('artwork_url')
+        skip_artwork = data.get('skip_artwork', False)
+        
+        # Store user's choice
+        if 'artwork_choices' not in session_data:
+            session_data['artwork_choices'] = {}
+        
+        session_data['artwork_choices'][file_index] = {
+            'artwork_url': artwork_url,
+            'skip_artwork': skip_artwork,
+            'timestamp': __import__('time').time()
+        }
+        
+        return jsonify({'success': True, 'message': 'Artwork choice saved'})
+        
+    except Exception as e:
+        logger.error(f"Error selecting artwork: {e}")
+        return jsonify({'error': f'Failed to select artwork: {str(e)}'}), 500
 
 @app.errorhandler(404)
 def not_found(error):
