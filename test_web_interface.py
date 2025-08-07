@@ -311,6 +311,55 @@ def test_static_file_serving():
     
     return True
 
+def test_filename_preservation():
+    """Test that original filenames are preserved during upload and processing"""
+    print("\n--- Testing Filename Preservation ---")
+    
+    # Test safe_filename function directly
+    from app import safe_filename
+    
+    test_cases = [
+        "02-Inkswel & Colonel Red - Make Me Crazy (Potatohead People Remix) [Only Good Stuff].mp3",
+        "Artist Name - Song Title (Remix) [Label].mp3", 
+        "Track 01 - DJ Mix & More.mp3",
+        "Song with (parentheses) and [brackets].mp3",
+        "Normal_filename.mp3"
+    ]
+    
+    success = True
+    for original in test_cases:
+        safe = safe_filename(original)
+        if safe != original:
+            print(f"❌ Filename preservation failed:")
+            print(f"   Original: {original}")
+            print(f"   Safe:     {safe}")
+            success = False
+        else:
+            print(f"✅ Preserved: {original}")
+    
+    # Test directory traversal protection
+    dangerous_filenames = [
+        "../../../etc/passwd",
+        "..\\..\\windows\\system32\\file.mp3",
+        "/etc/shadow.mp3",
+        "C:\\Windows\\system32\\file.mp3"
+    ]
+    
+    for dangerous in dangerous_filenames:
+        safe = safe_filename(dangerous)
+        if safe and (".." in safe or safe.startswith("/") or safe.startswith("\\")):
+            print(f"❌ Security vulnerability: {dangerous} -> {safe}")
+            success = False
+        else:
+            print(f"✅ Blocked dangerous filename: {dangerous}")
+    
+    if success:
+        print("✅ Filename Preservation: PASSED")
+    else:
+        print("❌ Filename Preservation: FAILED")
+    
+    return success
+
 def main():
     """Run all web interface tests"""
     print("🧪 Running Web Interface Tests (Phase 4)\n")
@@ -326,7 +375,8 @@ def main():
         ("Validation Endpoint", test_validation_endpoint),
         ("Frontend Template", test_frontend_template),
         ("Complete Workflow Simulation", test_complete_workflow_simulation),
-        ("Static File Serving", test_static_file_serving)
+        ("Static File Serving", test_static_file_serving),
+        ("Filename Preservation", test_filename_preservation)
     ]
     
     passed = 0

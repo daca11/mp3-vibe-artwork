@@ -74,6 +74,7 @@
     - ✅ Checks write permissions before processing
     - ✅ Generates unique filenames to avoid conflicts
     - ✅ Maintains original MP3 structure in output
+    - ✅ **CRITICAL**: Preserves original filenames exactly (no sanitization or modification)
 
 - [x] **Implement MP3 file copying with new artwork**
   - **Acceptance Criteria**: 
@@ -95,10 +96,11 @@
 ### 4.1 File Upload Interface
 - [x] **Create file selection interface**
   - **Acceptance Criteria**: 
-    - ✅ HTML form allows single file selection
-    - ✅ Drag & drop interface for multiple files
-    - ✅ File type filtering shows only .mp3 files
-    - ✅ Clear visual feedback for selection
+    - ✅ Allows users to select multiple MP3 files
+    - ✅ Validates file types (only MP3 files accepted)
+    - ✅ Shows file names, sizes, and basic info
+    - ✅ Prevents upload of non-MP3 files
+    - ✅ **CRITICAL**: Preserves original filenames during upload and processing
 
 - [x] **Implement file upload handling**
   - **Acceptance Criteria**: 

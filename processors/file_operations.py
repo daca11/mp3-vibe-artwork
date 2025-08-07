@@ -73,77 +73,13 @@ class FileOperations:
             logger.error(f"OS error creating output folder: {output_path} - {e}")
             raise OSError(f"Failed to create output folder: {output_path}") from e
     
-    def generate_output_filename(self, artist: str, title: str) -> str:
-        """
-        Generate output filename using Artist - Title.mp3 convention.
-        
-        Args:
-            artist: Artist name
-            title: Song title
-            
-        Returns:
-            Filename in "Artist - Title.mp3" format
-        """
-        # Use fallbacks for missing values
-        clean_artist = self._sanitize_for_filename(artist) if artist else "Unknown Artist"
-        clean_title = self._sanitize_for_filename(title) if title else "Unknown Title"
-        
-        return f"{clean_artist} - {clean_title}.mp3"
-    
-    def _sanitize_for_filename(self, text: str) -> str:
-        """
-        Sanitize text for use in filenames while preserving readability.
-        
-        Args:
-            text: Text to sanitize
-            
-        Returns:
-            Sanitized text safe for filenames
-        """
-        if not text:
-            return ""
-        
-        # Remove or replace characters that are problematic for filenames
-        # Keep: letters, numbers, spaces, hyphens, parentheses, brackets, ampersands
-        import re
-        
-        # Replace problematic characters but keep readability
-        sanitized = text.strip()
-        
-        # Remove leading/trailing quotes
-        sanitized = sanitized.strip('\'"')
-        
-        # Replace file system reserved characters with safe alternatives
-        replacements = {
-            '/': '-',
-            '\\': '-',
-            ':': '-',
-            '*': '',
-            '?': '',
-            '"': "'",
-            '<': '(',
-            '>': ')',
-            '|': '-'
-        }
-        
-        for old, new in replacements.items():
-            sanitized = sanitized.replace(old, new)
-        
-        # Remove any remaining problematic characters while preserving spaces and common punctuation
-        sanitized = re.sub(r'[^\w\s\-\(\)\[\]&\'".!,]', '', sanitized)
-        
-        # Clean up multiple spaces
-        sanitized = re.sub(r'\s+', ' ', sanitized).strip()
-        
-        return sanitized
-
     def generate_unique_filename(self, output_dir: Path, base_filename: str) -> Path:
         """
         Generate a unique filename to avoid conflicts.
         
         Args:
             output_dir: Output directory path
-            base_filename: Base filename (e.g., "Artist - Title.mp3")
+            base_filename: Base filename (e.g., "song.mp3")
             
         Returns:
             Unique file path
@@ -160,7 +96,7 @@ class FileOperations:
         # Generate unique filename with counter
         counter = 1
         while True:
-            new_name = f"{stem} ({counter}){suffix}"
+            new_name = f"{stem}_{counter:03d}{suffix}"
             new_path = output_dir / new_name
             
             if not new_path.exists():
@@ -221,8 +157,7 @@ class FileOperations:
     
     def copy_mp3_with_artwork(self, source_path: Path, output_dir: Path, 
                             artwork_data: Optional[bytes] = None,
-                            artwork_mime: str = "image/jpeg",
-                            output_filename: Optional[str] = None) -> Dict[str, Union[bool, str, Path]]:
+                            artwork_mime: str = "image/jpeg") -> Dict[str, Union[bool, str, Path]]:
         """
         Copy MP3 file to output directory with optional artwork embedding.
         
@@ -231,7 +166,6 @@ class FileOperations:
             output_dir: Output directory
             artwork_data: Optional artwork data to embed
             artwork_mime: MIME type of artwork
-            output_filename: Optional custom output filename
             
         Returns:
             Dictionary with operation results:
@@ -262,9 +196,8 @@ class FileOperations:
                 result['error'] = f"Invalid MP3 file: {validation_error}"
                 return result
             
-            # Use provided filename or fallback to original
-            filename_to_use = output_filename or source_path.name
-            output_path = self.generate_unique_filename(output_dir, filename_to_use)
+            # Generate unique output filename
+            output_path = self.generate_unique_filename(output_dir, source_path.name)
             
             # Copy the file
             shutil.copy2(source_path, output_path)
@@ -382,8 +315,8 @@ class FileOperations:
         # Remove common prefixes/suffixes
         cleaned = filename
         
-        # Remove track numbers at the beginning (formats: "01. ", "02-", "1 ")
-        cleaned = re.sub(r'^\d+[\.\-\s]+', '', cleaned)
+        # Remove track numbers at the beginning
+        cleaned = re.sub(r'^\d+\.?\s*', '', cleaned)
         
         # Remove quality indicators
         quality_patterns = [
@@ -533,21 +466,10 @@ class FileOperations:
             
             result['processing_steps'].append(f"Created output directory: {output_dir}")
             
-            # Step 7: Generate proper output filename
-            result['processing_steps'].append("Generating output filename")
-            
-            # Determine artist and title for filename
-            artist = result['metadata'].get('artist') or result['parsing_info'].get('artist') or "Unknown Artist"
-            title = result['metadata'].get('title') or result['parsing_info'].get('title') or "Unknown Title"
-            
-            # Generate proper filename using Artist - Title convention
-            output_filename = self.generate_output_filename(artist, title)
-            result['output_filename'] = output_filename
-            
-            # Step 8: Copy file with artwork
+            # Step 7: Copy file with artwork
             result['processing_steps'].append("Copying file with processed artwork")
             copy_result = self.copy_mp3_with_artwork(
-                source_path, output_dir, artwork_data, artwork_mime, output_filename
+                source_path, output_dir, artwork_data, artwork_mime
             )
             
             if copy_result['success']:

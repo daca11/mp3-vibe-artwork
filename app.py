@@ -7,6 +7,7 @@ A web-based application for processing MP3 artwork to meet Traktor specification
 import os
 import json
 import uuid
+import logging
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_file, session
 from werkzeug.utils import secure_filename
@@ -35,6 +36,24 @@ artwork_processor = ArtworkProcessor()
 
 # Store processing sessions (in production, use Redis or database)
 processing_sessions = {}
+
+def safe_filename(filename):
+    """
+    Create a safe filename that preserves the original name while preventing security issues.
+    Only prevents directory traversal - does not sanitize special characters.
+    """
+    if not filename:
+        return None
+    
+    # Remove any directory path components to prevent traversal
+    # Handle both Unix (/) and Windows (\) path separators
+    safe_name = os.path.basename(filename.replace('\\', '/'))
+    
+    # Ensure we still have a valid filename
+    if not safe_name or safe_name in ('.', '..') or '/' in safe_name or '\\' in safe_name:
+        return None
+        
+    return safe_name
 
 @app.route('/')
 def index():
@@ -80,7 +99,7 @@ def upload_files():
                     continue
                 
                 # Secure the filename
-                filename = secure_filename(file.filename)
+                filename = safe_filename(file.filename)
                 if not filename:
                     continue
                 
