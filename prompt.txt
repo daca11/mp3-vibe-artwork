@@ -1,0 +1,14 @@
+You are an expert requirements engineer.
+Generate a software specification in markdown format for an MP3 artwork manager.
+
+It should be a web application. 
+Techologies that should be used are: Flask, mutagen,Pillow,musicbrainzngs.
+
+Characteristics:
+- able to upload one or multiple mp3 files
+- have an interactive processing queue
+- user must be able to select which artwork to save in the id3 tags, either the existing embedded one or the ones found by the MusicBrainz API
+- app will generate the resulting output file preserving the original filename but with the selected artwork embedded in the id3 tags
+- artwork should be max dimensions of 500x500px, maximum size 500kb, format jgeg or png. If the artwork already embedded exceeds those dimensions or size, reduce the dimensions until both criterias are met and replace the artwork with the resized one. If the artwork retrieved from musicbrainz does not meet the criterias, resize them and embed the resized artwork in the id3 tags of the song.
+- app should query musicbrainz api with the artist and title id3 tags from the file, or as fallback if there is none or no results, detect the artist and title from the filename
+- any processing errors should be visible in the application log
