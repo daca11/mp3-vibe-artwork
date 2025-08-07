@@ -44,6 +44,10 @@ DJs and music enthusiasts who use Traktor 3 and need their MP3 collection to hav
 - **Artwork Preview**: Show artwork before applying changes
 - **Manual Selection**: Allow user to choose from multiple artwork options
 - **Progress Tracking**: Real-time status updates during processing
+- **Persistent Notifications**: Status messages and alerts remain visible until manually dismissed by user
+  - No auto-dismissal of notifications
+  - Manual dismiss button (✕) for each notification
+  - Consistent notification behavior across all application functions
 
 ### 2.2 User Workflow
 
@@ -113,7 +117,10 @@ DJs and music enthusiasts who use Traktor 3 and need their MP3 collection to hav
 
 ### 4.3 Usability
 - **Interface**: Clean, intuitive web interface
-- **Feedback**: Clear progress indicators and error messages
+- **Feedback**: Clear progress indicators and persistent error messages
+  - All notifications remain visible until manually dismissed
+  - Each notification includes a dismiss button for user control
+  - No automatic timeout or hiding of important messages
 - **Browser Support**: Modern web browsers (Chrome, Firefox, Safari, Edge)
 
 ## 5. Error Handling

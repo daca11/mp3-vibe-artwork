@@ -410,7 +410,7 @@ function showSection(sectionId) {
 }
 
 /**
- * Show status message to user
+ * Show status message to user with manual dismiss functionality
  */
 function showStatusMessage(message, type = 'info') {
     console.log(`[${type.toUpperCase()}] ${message}`);
@@ -420,16 +420,38 @@ function showStatusMessage(message, type = 'info') {
     
     const messageElement = document.createElement('div');
     messageElement.className = `status-message status-${type}`;
-    messageElement.textContent = message;
+    
+    // Create message content container
+    const messageContent = document.createElement('div');
+    messageContent.className = 'message-content';
+    messageContent.textContent = message;
+    
+    // Create dismiss button
+    const dismissButton = document.createElement('button');
+    dismissButton.className = 'message-dismiss';
+    dismissButton.innerHTML = '✕';
+    dismissButton.title = 'Dismiss notification';
+    dismissButton.setAttribute('aria-label', 'Dismiss notification');
+    
+    // Add click handler for dismiss button
+    dismissButton.addEventListener('click', () => {
+        if (messageElement.parentNode) {
+            messageElement.style.animation = 'slideOut 0.3s ease forwards';
+            setTimeout(() => {
+                if (messageElement.parentNode) {
+                    messageElement.parentNode.removeChild(messageElement);
+                }
+            }, 300);
+        }
+    });
+    
+    // Assemble message element
+    messageElement.appendChild(messageContent);
+    messageElement.appendChild(dismissButton);
     
     statusMessages.appendChild(messageElement);
     
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-        if (messageElement.parentNode) {
-            messageElement.parentNode.removeChild(messageElement);
-        }
-    }, 5000);
+    // No auto-dismissal - notifications persist until manually dismissed
 }
 
 /**
@@ -485,7 +507,7 @@ async function showArtworkOptions(sessionId, fileIndex) {
         displayArtworkModal(data, sessionId, fileIndex);
     } catch (error) {
         console.error('Error getting artwork options:', error);
-        showMessage('Failed to get artwork options', 'error');
+        showStatusMessage('Failed to get artwork options', 'error');
     }
 }
 
@@ -572,7 +594,7 @@ function displayArtworkModal(data, sessionId, fileIndex) {
 
 async function previewArtwork(artworkUrl, optionIndex) {
     try {
-        showMessage('Loading preview...', 'info');
+        showStatusMessage('Loading preview...', 'info');
         
         const response = await fetch('/api/artwork-preview', {
             method: 'POST',
@@ -589,10 +611,10 @@ async function previewArtwork(artworkUrl, optionIndex) {
         }
         
         displayArtworkPreview(data, optionIndex);
-        hideMessage();
+        // Note: Notifications now persist until manually dismissed
     } catch (error) {
         console.error('Error previewing artwork:', error);
-        showMessage('Failed to preview artwork', 'error');
+        showStatusMessage('Failed to preview artwork', 'error');
     }
 }
 
@@ -650,7 +672,7 @@ async function selectArtwork(sessionId, fileIndex, artworkUrl, skipArtwork = fal
             throw new Error(data.error || 'Failed to select artwork');
         }
         
-        showMessage(skipArtwork ? 'Artwork skipped' : 'Artwork selected', 'success');
+        showStatusMessage(skipArtwork ? 'Artwork skipped' : 'Artwork selected', 'success');
         closeArtworkModal();
         
         // Update file status to show user has made a choice
@@ -658,7 +680,7 @@ async function selectArtwork(sessionId, fileIndex, artworkUrl, skipArtwork = fal
         
     } catch (error) {
         console.error('Error selecting artwork:', error);
-        showMessage('Failed to select artwork', 'error');
+        showStatusMessage('Failed to select artwork', 'error');
     }
 }
 
@@ -827,7 +849,7 @@ function updateFileStatuses(files) {
 
 async function controlProcessing(action) {
     if (!currentSessionId) {
-        showMessage('No active processing session', 'error');
+        showStatusMessage('No active processing session', 'error');
         return;
     }
     
@@ -843,7 +865,7 @@ async function controlProcessing(action) {
         const result = await response.json();
         
         if (response.ok) {
-            showMessage(result.message, 'success');
+            showStatusMessage(result.message, 'success');
             
             // Update UI based on action
             if (action === 'pause') {
@@ -854,16 +876,16 @@ async function controlProcessing(action) {
                 updateProcessingControls('cancelled');
                 stopProgressTracking();
             } else if (action === 'retry_errors') {
-                showMessage('Retrying failed files...', 'info');
+                showStatusMessage('Retrying failed files...', 'info');
             } else if (action === 'clear_queue') {
                 location.reload(); // Refresh page to show empty queue
             }
         } else {
-            showMessage(result.error || 'Failed to control processing', 'error');
+            showStatusMessage(result.error || 'Failed to control processing', 'error');
         }
     } catch (error) {
         console.error('Error controlling processing:', error);
-        showMessage('Failed to control processing', 'error');
+        showStatusMessage('Failed to control processing', 'error');
     }
 }
 
@@ -881,7 +903,7 @@ function updateProcessingControls(status) {
 
 async function showErrorLog() {
     if (!currentSessionId) {
-        showMessage('No active session', 'error');
+        showStatusMessage('No active session', 'error');
         return;
     }
     
@@ -892,11 +914,11 @@ async function showErrorLog() {
         if (response.ok) {
             displayErrorLogModal(errorLog);
         } else {
-            showMessage(errorLog.error || 'Failed to get error log', 'error');
+            showStatusMessage(errorLog.error || 'Failed to get error log', 'error');
         }
     } catch (error) {
         console.error('Error getting error log:', error);
-        showMessage('Failed to get error log', 'error');
+        showStatusMessage('Failed to get error log', 'error');
     }
 }
 
@@ -974,7 +996,7 @@ function closeErrorLogModal() {
 
 async function exportErrorLog() {
     if (!currentSessionId) {
-        showMessage('No active session', 'error');
+        showStatusMessage('No active session', 'error');
         return;
     }
     
@@ -995,13 +1017,13 @@ async function exportErrorLog() {
             a.click();
             window.URL.revokeObjectURL(url);
             
-            showMessage('Error log exported successfully', 'success');
+            showStatusMessage('Error log exported successfully', 'success');
         } else {
-            showMessage(result.error || 'Failed to export error log', 'error');
+            showStatusMessage(result.error || 'Failed to export error log', 'error');
         }
     } catch (error) {
         console.error('Error exporting error log:', error);
-        showMessage('Failed to export error log', 'error');
+        showStatusMessage('Failed to export error log', 'error');
     }
 }
 
@@ -1027,7 +1049,7 @@ function showProcessingComplete(status) {
     
     // Update the UI to show completion
     const messageType = summary.failed > 0 ? 'warning' : 'success';
-    showMessage(message, messageType);
+    showStatusMessage(message, messageType);
     
     // Show final processing controls
     updateProcessingControls(status.status);

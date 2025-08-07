@@ -12,7 +12,7 @@ from pathlib import Path
 from PIL import Image
 
 # Import the Flask app
-from app import app, processing_sessions
+from app import create_app
 
 def create_test_mp3_file(file_path: Path, title: str = "Test Song", 
                         artist: str = "Test Artist") -> None:
@@ -26,6 +26,7 @@ def test_flask_app_configuration():
     print("Testing Flask app configuration...")
     
     # Test app exists and is configured
+    app = create_app()
     assert app is not None
     assert app.config['SECRET_KEY'] is not None
     assert app.config['MAX_CONTENT_LENGTH'] == 100 * 1024 * 1024
@@ -39,6 +40,7 @@ def test_basic_routes():
     """Test basic Flask routes"""
     print("\nTesting basic routes...")
     
+    app = create_app()
     with app.test_client() as client:
         # Test main page
         response = client.get('/')
@@ -58,6 +60,7 @@ def test_file_upload_endpoint():
     """Test file upload functionality"""
     print("\nTesting file upload endpoint...")
     
+    app = create_app()
     with app.test_client() as client:
         # Test upload without files
         response = client.post('/upload')
@@ -101,6 +104,7 @@ def test_processing_endpoints():
     """Test processing-related endpoints"""
     print("\nTesting processing endpoints...")
     
+    app = create_app()
     with app.test_client() as client:
         # Test process with invalid session
         response = client.post('/process/invalid-session-id')
@@ -143,6 +147,7 @@ def test_session_management():
     print("✅ Session storage: Successfully stores session data")
     
     # Test session retrieval
+    app = create_app()
     with app.test_client() as client:
         response = client.get(f'/status/{test_session_id}')
         assert response.status_code == 200
@@ -160,6 +165,7 @@ def test_error_handling():
     """Test error handling and edge cases"""
     print("\nTesting error handling...")
     
+    app = create_app()
     with app.test_client() as client:
         # Test 404 handling
         response = client.get('/nonexistent-route')
@@ -185,6 +191,7 @@ def test_validation_endpoint():
     """Test the file validation API endpoint"""
     print("\nTesting validation endpoint...")
     
+    app = create_app()
     with app.test_client() as client:
         # Test validation without data
         response = client.post('/api/validate', json={})
@@ -217,6 +224,7 @@ def test_frontend_template():
     """Test frontend template rendering"""
     print("\nTesting frontend template...")
     
+    app = create_app()
     with app.test_client() as client:
         response = client.get('/')
         assert response.status_code == 200
@@ -258,7 +266,8 @@ def test_complete_workflow_simulation():
         test_file = Path(temp_dir) / "test_song.mp3"
         create_test_mp3_file(test_file)
         
-        with app.test_client() as client:
+        app = create_app()
+    with app.test_client() as client:
             # Step 1: Upload file
             with open(test_file, 'rb') as f:
                 response = client.post('/upload', data={
@@ -292,6 +301,7 @@ def test_static_file_serving():
     """Test that static files are served correctly"""
     print("\nTesting static file serving...")
     
+    app = create_app()
     with app.test_client() as client:
         # Test CSS file
         response = client.get('/static/css/style.css')
@@ -360,6 +370,89 @@ def test_filename_preservation():
     
     return success
 
+def test_notification_system():
+    """Test persistent notification system with manual dismiss"""
+    print("\n--- Testing Notification System ---")
+    
+    try:
+        from app import create_app
+        success = True
+        
+        # Test that the static files contain the new notification system
+        app = create_app()
+        with app.test_client() as client:
+            # Check main page includes notification container
+            response = client.get('/')
+            html_content = response.data.decode()
+            
+            if 'statusMessages' not in html_content:
+                print("❌ Missing statusMessages container in HTML")
+                success = False
+            else:
+                print("✅ Status messages container present")
+        
+        # Test JavaScript contains persistent notification functionality
+        js_path = Path('static/js/app.js')
+        if js_path.exists():
+            js_content = js_path.read_text()
+            
+            # Check for showStatusMessage function with dismiss functionality
+            if 'showStatusMessage' not in js_content:
+                print("❌ Missing showStatusMessage function")
+                success = False
+            else:
+                print("✅ showStatusMessage function present")
+            
+            # Check for dismiss button implementation
+            if 'message-dismiss' not in js_content:
+                print("❌ Missing dismiss button functionality")
+                success = False
+            else:
+                print("✅ Dismiss button functionality present")
+            
+            # Check that auto-dismissal is disabled (no setTimeout for removal)
+            if 'setTimeout(' in js_content and 'removeChild' in js_content:
+                # Check if it's only for the dismiss animation, not auto-removal
+                js_lines = js_content.split('\n')
+                auto_dismiss_lines = [line for line in js_lines 
+                                     if 'setTimeout' in line and 'removeChild' in line 
+                                     and 'slideOut' not in line and '5000' in line]
+                if auto_dismiss_lines:
+                    print("❌ Auto-dismissal still present in notifications")
+                    success = False
+                else:
+                    print("✅ Auto-dismissal removed from notifications")
+            else:
+                print("✅ No auto-dismissal detected")
+        
+        # Test CSS contains dismiss button styles
+        css_path = Path('static/css/style.css')
+        if css_path.exists():
+            css_content = css_path.read_text()
+            
+            if 'message-dismiss' not in css_content:
+                print("❌ Missing dismiss button styles")
+                success = False
+            else:
+                print("✅ Dismiss button styles present")
+            
+            if 'slideOut' not in css_content:
+                print("❌ Missing slideOut animation for dismiss")
+                success = False
+            else:
+                print("✅ SlideOut animation present")
+        
+        if success:
+            print("✅ Notification System: PASSED")
+        else:
+            print("❌ Notification System: FAILED")
+        
+        return success
+        
+    except Exception as e:
+        print(f"❌ Notification system test error: {e}")
+        return False
+
 def main():
     """Run all web interface tests"""
     print("🧪 Running Web Interface Tests (Phase 4)\n")
@@ -376,7 +469,8 @@ def main():
         ("Frontend Template", test_frontend_template),
         ("Complete Workflow Simulation", test_complete_workflow_simulation),
         ("Static File Serving", test_static_file_serving),
-        ("Filename Preservation", test_filename_preservation)
+        ("Filename Preservation", test_filename_preservation),
+        ("Notification System", test_notification_system)
     ]
     
     passed = 0

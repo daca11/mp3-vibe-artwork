@@ -450,6 +450,60 @@ footer {
     margin-bottom: 1rem;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     animation: slideIn 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 48px;
+}
+
+.message-content {
+    flex: 1;
+    margin-right: 12px;
+    word-wrap: break-word;
+}
+
+.message-dismiss {
+    background: none;
+    border: none;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+    min-width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.message-dismiss:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.1);
+    transform: scale(1.1);
+}
+
+.message-dismiss:active {
+    transform: scale(0.95);
+}
+
+.status-success .message-dismiss {
+    color: #155724;
+}
+
+.status-error .message-dismiss {
+    color: #721c24;
+}
+
+.status-info .message-dismiss {
+    color: #0c5460;
+}
+
+.status-warning .message-dismiss {
+    color: #856404;
 }
 
 .status-success {
@@ -470,6 +524,12 @@ footer {
     border-left: 4px solid #17a2b8;
 }
 
+.status-warning {
+    background: #fff3cd;
+    color: #856404;
+    border-left: 4px solid #ffc107;
+}
+
 @keyframes slideIn {
     from {
         transform: translateX(100%);
@@ -478,6 +538,17 @@ footer {
     to {
         transform: translateX(0);
         opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
     }
 }
 
