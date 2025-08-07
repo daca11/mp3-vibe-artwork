@@ -15,6 +15,7 @@ from mutagen.id3 import ID3, APIC, ID3NoHeaderError
 from processors.file_handler import MP3FileHandler
 from processors.artwork_processor import ArtworkProcessor
 from processors.musicbrainz_client import MusicBrainzClient
+from processors.error_handler import error_handler, ErrorCategory, ErrorSeverity
 
 # Set up logging
 logger = logging.getLogger(__name__)

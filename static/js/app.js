@@ -189,42 +189,93 @@ function displayFileList() {
 }
 
 /**
- * Process the uploaded files
+ * Process the uploaded files with enhanced progress tracking
  */
 async function processFiles() {
     if (!currentSession) {
         showStatusMessage('No files to process', 'error');
         return;
     }
-    
-    if (isProcessing) {
-        showStatusMessage('Already processing files', 'error');
-        return;
-    }
-    
-    isProcessing = true;
-    showSection('processingSection');
-    updateProgress(0, 'Starting processing...');
-    
+
     try {
+        // Start progress tracking
+        startProgressTracking(currentSession);
+        
+        // Show progress UI
+        showProgressUI();
+        
         const response = await fetch(`/process/${currentSession}`, {
             method: 'POST'
         });
-        
+
         const result = await response.json();
         
         if (response.ok) {
-            updateProgress(100, 'Processing completed');
-            showStatusMessage('Processing completed successfully', 'success');
-            displayResults(result);
-            showSection('resultsSection');
+            showStatusMessage(result.message, 'success');
+            
+            // Show download link if processing was successful
+            if (result.summary && result.summary.successful > 0) {
+                showDownloadLink();
+            }
         } else {
             showStatusMessage(result.error || 'Processing failed', 'error');
+            
+            // Show error details if available
+            if (result.error_summary && result.error_summary.total_errors > 0) {
+                setTimeout(() => showErrorLog(), 1000);
+            }
         }
     } catch (error) {
-        showStatusMessage('Processing failed: ' + error.message, 'error');
-    } finally {
-        isProcessing = false;
+        console.error('Error processing files:', error);
+        showStatusMessage('Processing failed', 'error');
+        stopProgressTracking();
+    }
+}
+
+function showProgressUI() {
+    const progressContainer = document.getElementById('progress-container');
+    
+    if (!progressContainer) {
+        // Create progress UI if it doesn't exist
+        const container = document.createElement('div');
+        container.id = 'progress-container';
+        container.innerHTML = `
+            <div class="progress-section">
+                <h3>Processing Files</h3>
+                
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+                
+                <div class="progress-info">
+                    <div id="progress-text">0/0 files (0%)</div>
+                    <div id="current-operation">Initializing...</div>
+                    <div id="time-remaining"></div>
+                </div>
+                
+                <div class="processing-controls">
+                    <button id="pause-btn" class="btn secondary" onclick="controlProcessing('pause')" style="display: inline-block;">⏸️ Pause</button>
+                    <button id="resume-btn" class="btn secondary" onclick="controlProcessing('resume')" style="display: none;">▶️ Resume</button>
+                    <button id="cancel-btn" class="btn danger" onclick="controlProcessing('cancel')" style="display: inline-block;">🛑 Cancel</button>
+                    <button id="retry-btn" class="btn primary" onclick="controlProcessing('retry_errors')" style="display: none;">🔄 Retry Errors</button>
+                    <button id="clear-queue-btn" class="btn secondary" onclick="controlProcessing('clear_queue')" style="display: none;">🗑️ Clear Queue</button>
+                </div>
+                
+                <div id="error-container" class="error-container" style="display: none;">
+                    <h4>Errors (<span id="error-count">0</span>)</h4>
+                    <div id="error-list" class="error-list"></div>
+                    <button class="btn secondary" onclick="showErrorLog()">📋 View Full Error Log</button>
+                </div>
+            </div>
+        `;
+        
+        // Insert after upload section
+        const uploadSection = document.querySelector('.upload-section');
+        if (uploadSection) {
+            uploadSection.insertAdjacentElement('afterend', container);
+        }
+    } else {
+        progressContainer.style.display = 'block';
     }
 }
 
@@ -633,4 +684,351 @@ function closeArtworkModal() {
     if (modal) {
         modal.remove();
     }
+} 
+
+// Phase 7: Enhanced Error Handling and Progress Tracking
+
+// Global variables for progress tracking
+let progressInterval = null;
+let currentSessionId = null;
+
+async function startProgressTracking(sessionId) {
+    currentSessionId = sessionId;
+    
+    // Clear any existing interval
+    if (progressInterval) {
+        clearInterval(progressInterval);
+    }
+    
+    // Start progress tracking
+    progressInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`/api/processing-status/${sessionId}`);
+            const status = await response.json();
+            
+            if (response.ok) {
+                updateProgressDisplay(status);
+                
+                // Stop tracking if processing is complete
+                if (['completed', 'completed_with_errors', 'failed', 'cancelled'].includes(status.status)) {
+                    stopProgressTracking();
+                    showProcessingComplete(status);
+                }
+            } else {
+                console.error('Failed to get processing status:', status.error);
+            }
+        } catch (error) {
+            console.error('Error tracking progress:', error);
+        }
+    }, 1000); // Update every second
+}
+
+function stopProgressTracking() {
+    if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+    }
+}
+
+function updateProgressDisplay(status) {
+    // Update progress bar
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+    const currentOperation = document.getElementById('current-operation');
+    const timeRemaining = document.getElementById('time-remaining');
+    
+    if (progressBar) {
+        progressBar.style.width = `${status.progress_percentage}%`;
+        progressBar.setAttribute('aria-valuenow', status.progress_percentage);
+    }
+    
+    if (progressText) {
+        progressText.textContent = `${status.processed_files}/${status.total_files} files (${status.progress_percentage}%)`;
+    }
+    
+    if (currentOperation) {
+        currentOperation.textContent = status.current_operation || 'Processing...';
+    }
+    
+    if (timeRemaining && status.estimated_time_remaining) {
+        const minutes = Math.floor(status.estimated_time_remaining / 60);
+        const seconds = status.estimated_time_remaining % 60;
+        timeRemaining.textContent = `~${minutes}:${seconds.toString().padStart(2, '0')} remaining`;
+    }
+    
+    // Update error information
+    updateErrorDisplay(status.errors);
+    
+    // Update file statuses
+    updateFileStatuses(status.files);
+}
+
+function updateErrorDisplay(errorSummary) {
+    const errorContainer = document.getElementById('error-container');
+    
+    if (!errorContainer) return;
+    
+    if (errorSummary.total_errors > 0) {
+        errorContainer.style.display = 'block';
+        
+        const errorCount = document.getElementById('error-count');
+        const errorList = document.getElementById('error-list');
+        
+        if (errorCount) {
+            errorCount.textContent = `${errorSummary.total_errors} errors`;
+        }
+        
+        if (errorList && errorSummary.recent_errors) {
+            errorList.innerHTML = errorSummary.recent_errors.map(error => `
+                <div class="error-item ${error.severity}">
+                    <span class="error-category">${error.category}</span>
+                    <span class="error-message">${error.user_message || error.message}</span>
+                    ${error.file_path ? `<span class="error-file">${error.file_path}</span>` : ''}
+                </div>
+            `).join('');
+        }
+    } else {
+        errorContainer.style.display = 'none';
+    }
+}
+
+function updateFileStatuses(files) {
+    files.forEach((file, index) => {
+        const fileElement = document.querySelector(`[data-file-index="${index}"]`);
+        if (fileElement) {
+            const statusElement = fileElement.querySelector('.file-status .status-text');
+            if (statusElement) {
+                statusElement.textContent = getStatusText(file.status);
+                fileElement.className = `file-item ${file.status}`;
+            }
+            
+            // Add error indicators
+            if (file.errors && file.errors.length > 0) {
+                const errorIndicator = fileElement.querySelector('.error-indicator') || 
+                    document.createElement('div');
+                errorIndicator.className = 'error-indicator';
+                errorIndicator.innerHTML = `⚠️ ${file.errors.length} error(s)`;
+                errorIndicator.title = file.errors.join('\n');
+                fileElement.appendChild(errorIndicator);
+            }
+            
+            // Add warning indicators
+            if (file.warnings && file.warnings.length > 0) {
+                const warningIndicator = fileElement.querySelector('.warning-indicator') || 
+                    document.createElement('div');
+                warningIndicator.className = 'warning-indicator';
+                warningIndicator.innerHTML = `⚠️ ${file.warnings.length} warning(s)`;
+                warningIndicator.title = file.warnings.join('\n');
+                fileElement.appendChild(warningIndicator);
+            }
+        }
+    });
+}
+
+async function controlProcessing(action) {
+    if (!currentSessionId) {
+        showMessage('No active processing session', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/processing-controls/${currentSessionId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ action })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            showMessage(result.message, 'success');
+            
+            // Update UI based on action
+            if (action === 'pause') {
+                updateProcessingControls('paused');
+            } else if (action === 'resume') {
+                updateProcessingControls('processing');
+            } else if (action === 'cancel') {
+                updateProcessingControls('cancelled');
+                stopProgressTracking();
+            } else if (action === 'retry_errors') {
+                showMessage('Retrying failed files...', 'info');
+            } else if (action === 'clear_queue') {
+                location.reload(); // Refresh page to show empty queue
+            }
+        } else {
+            showMessage(result.error || 'Failed to control processing', 'error');
+        }
+    } catch (error) {
+        console.error('Error controlling processing:', error);
+        showMessage('Failed to control processing', 'error');
+    }
+}
+
+function updateProcessingControls(status) {
+    const pauseBtn = document.getElementById('pause-btn');
+    const resumeBtn = document.getElementById('resume-btn');
+    const cancelBtn = document.getElementById('cancel-btn');
+    const retryBtn = document.getElementById('retry-btn');
+    
+    if (pauseBtn) pauseBtn.style.display = (status === 'processing') ? 'inline-block' : 'none';
+    if (resumeBtn) resumeBtn.style.display = (status === 'paused') ? 'inline-block' : 'none';
+    if (cancelBtn) cancelBtn.style.display = (['processing', 'paused'].includes(status)) ? 'inline-block' : 'none';
+    if (retryBtn) retryBtn.style.display = (['completed_with_errors', 'failed'].includes(status)) ? 'inline-block' : 'none';
+}
+
+async function showErrorLog() {
+    if (!currentSessionId) {
+        showMessage('No active session', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/error-log/${currentSessionId}`);
+        const errorLog = await response.json();
+        
+        if (response.ok) {
+            displayErrorLogModal(errorLog);
+        } else {
+            showMessage(errorLog.error || 'Failed to get error log', 'error');
+        }
+    } catch (error) {
+        console.error('Error getting error log:', error);
+        showMessage('Failed to get error log', 'error');
+    }
+}
+
+function displayErrorLogModal(errorLog) {
+    const modal = document.createElement('div');
+    modal.className = 'error-log-modal';
+    modal.innerHTML = `
+        <div class="error-log-content">
+            <div class="error-log-header">
+                <h3>Error Log</h3>
+                <button class="close-modal" onclick="closeErrorLogModal()">&times;</button>
+            </div>
+            
+            <div class="error-summary">
+                <h4>Summary</h4>
+                <div class="summary-stats">
+                    <div class="stat">
+                        <span class="stat-label">Total Errors:</span>
+                        <span class="stat-value">${errorLog.total_errors}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Critical:</span>
+                        <span class="stat-value critical">${errorLog.error_counts_by_severity.critical}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">High:</span>
+                        <span class="stat-value high">${errorLog.error_counts_by_severity.high}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Medium:</span>
+                        <span class="stat-value medium">${errorLog.error_counts_by_severity.medium}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Low:</span>
+                        <span class="stat-value low">${errorLog.error_counts_by_severity.low}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="error-details">
+                <h4>Recent Errors</h4>
+                <div class="error-list">
+                    ${errorLog.recent_errors.map(error => `
+                        <div class="error-item ${error.severity}">
+                            <div class="error-header">
+                                <span class="error-category">${error.category}</span>
+                                <span class="error-severity ${error.severity}">${error.severity}</span>
+                                <span class="error-time">${new Date(error.timestamp * 1000).toLocaleString()}</span>
+                            </div>
+                            <div class="error-message">${error.user_message || error.message}</div>
+                            ${error.file_path ? `<div class="error-file">File: ${error.file_path}</div>` : ''}
+                            ${error.retry_count > 0 ? `<div class="error-retries">Retries: ${error.retry_count}</div>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <div class="error-actions">
+                <button class="btn secondary" onclick="exportErrorLog()">Export Log</button>
+                <button class="btn primary" onclick="closeErrorLogModal()">Close</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.style.display = 'flex';
+}
+
+function closeErrorLogModal() {
+    const modal = document.querySelector('.error-log-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+async function exportErrorLog() {
+    if (!currentSessionId) {
+        showMessage('No active session', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/export-error-log/${currentSessionId}`, {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            // Create and download the log file
+            const blob = new Blob([result.log_content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = result.filename;
+            a.click();
+            window.URL.revokeObjectURL(url);
+            
+            showMessage('Error log exported successfully', 'success');
+        } else {
+            showMessage(result.error || 'Failed to export error log', 'error');
+        }
+    } catch (error) {
+        console.error('Error exporting error log:', error);
+        showMessage('Failed to export error log', 'error');
+    }
+}
+
+function showProcessingComplete(status) {
+    const summary = status.summary || {};
+    
+    let message = `Processing completed!\n`;
+    message += `✅ ${summary.successful || 0} files processed successfully\n`;
+    
+    if (summary.failed > 0) {
+        message += `❌ ${summary.failed} files failed\n`;
+    }
+    
+    if (summary.warnings > 0) {
+        message += `⚠️ ${summary.warnings} files with warnings\n`;
+    }
+    
+    message += `⏱️ Processing time: ${summary.processing_time || 0} seconds`;
+    
+    if (summary.failed > 0 || summary.warnings > 0) {
+        message += `\n\nClick 'View Error Log' for details.`;
+    }
+    
+    // Update the UI to show completion
+    const messageType = summary.failed > 0 ? 'warning' : 'success';
+    showMessage(message, messageType);
+    
+    // Show final processing controls
+    updateProcessingControls(status.status);
 } 

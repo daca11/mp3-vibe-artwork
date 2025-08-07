@@ -15,6 +15,8 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from processors.file_operations import FileOperations
 from processors.file_handler import MP3FileHandler
 from processors.artwork_processor import ArtworkProcessor
+from processors.error_handler import error_handler, ErrorCategory, ErrorSeverity
+import time
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -158,7 +160,7 @@ def upload_files():
 
 @app.route('/process/<session_id>', methods=['POST'])
 def process_files(session_id):
-    """Process uploaded files"""
+    """Process uploaded files with comprehensive error handling and progress tracking"""
     try:
         if session_id not in processing_sessions:
             return jsonify({'error': 'Invalid session ID'}), 404
@@ -167,69 +169,183 @@ def process_files(session_id):
         if session_data['status'] == 'processing':
             return jsonify({'error': 'Already processing'}), 400
         
+        # Clear any previous errors
+        error_handler.clear_errors()
+        
         session_data['status'] = 'processing'
         session_data['processed_files'] = 0
+        session_data['current_operation'] = 'initializing'
         
         # Create output directory for this session
-        output_dir = file_ops.create_output_folder(session_id)
+        try:
+            output_dir = file_ops.create_output_folder(session_id)
+        except Exception as e:
+            error = error_handler.handle_error(
+                ErrorCategory.STORAGE_ERROR,
+                ErrorSeverity.CRITICAL,
+                f"Failed to create output directory: {str(e)}",
+                exception=e
+            )
+            session_data['status'] = 'failed'
+            return jsonify({
+                'error': error_handler.get_user_friendly_message(error),
+                'details': str(e)
+            }), 500
         
         results = []
+        start_time = time.time()
+        
         for i, file_info in enumerate(session_data['files']):
+            # Check for processing control signals
+            if error_handler.should_stop_processing:
+                session_data['status'] = 'cancelled'
+                break
+            
+            if session_data.get('status') == 'paused':
+                while session_data.get('status') == 'paused':
+                    time.sleep(1)  # Wait for resume
+                if session_data.get('status') == 'cancelled':
+                    break
+            
             try:
                 file_path = Path(file_info['file_path'])
                 
-                # Update file status
+                # Update progress tracking
                 file_info['status'] = 'processing'
                 session_data['current_file'] = i
+                session_data['current_operation'] = f'processing {file_path.name}'
+                
+                # Estimate time remaining
+                elapsed_time = time.time() - start_time
+                if i > 0:
+                    avg_time_per_file = elapsed_time / i
+                    remaining_files = len(session_data['files']) - i
+                    estimated_remaining = avg_time_per_file * remaining_files
+                    session_data['estimated_time_remaining'] = round(estimated_remaining)
                 
                 # Check for user artwork choice
                 user_choice = None
                 if 'artwork_choices' in session_data and i in session_data['artwork_choices']:
                     user_choice = session_data['artwork_choices'][i]
                 
-                # Process the file with user choice if available
+                # Process the file with enhanced error handling
                 if user_choice:
                     result = file_ops.process_mp3_file_with_choice(file_path, output_dir, user_choice)
                 else:
                     result = file_ops.process_mp3_file(file_path, output_dir, process_artwork=True)
                 
+                # Handle result with error categorization
                 if result['success']:
                     file_info['status'] = 'completed'
                     file_info['output_path'] = str(result['output_path'])
-                    file_info['processing_info'] = {
-                        'artwork_processed': result['artwork_info'].get('processing_needed', False),
-                        'artwork_compliant': result['artwork_info'].get('was_compliant', False),
-                        'metadata_extracted': bool(result['metadata']),
-                        'filename_parsed': bool(result['parsing_info'].get('artist'))
-                    }
+                    file_info['processing_steps'] = result.get('processing_steps', [])
+                    
+                    if result.get('warnings'):
+                        file_info['warnings'] = result['warnings']
+                    
+                    session_data['processed_files'] += 1
+                    logger.info(f"Successfully processed: {file_path}")
                 else:
-                    file_info['status'] = 'error'
-                    file_info['error'] = result['error']
+                    file_info['status'] = 'failed'
+                    
+                    # Handle errors from processing result
+                    if result.get('errors'):
+                        file_info['errors'] = result['errors']
+                        # Log to global error handler for tracking
+                        for error_msg in result['errors']:
+                            error_handler.handle_error(
+                                ErrorCategory.FILE_VALIDATION,
+                                ErrorSeverity.HIGH,
+                                error_msg,
+                                file_path=file_path
+                            )
+                    
+                    if result.get('warnings'):
+                        file_info['warnings'] = result['warnings']
+                    
+                    logger.error(f"Failed to process: {file_path}")
                 
-                session_data['processed_files'] += 1
-                results.append(file_info)
+                results.append({
+                    'file': file_info['filename'],
+                    'success': result['success'],
+                    'errors': result.get('errors', []),
+                    'warnings': result.get('warnings', [])
+                })
                 
             except Exception as e:
-                file_info['status'] = 'error'
-                file_info['error'] = str(e)
-                session_data['processed_files'] += 1
-                results.append(file_info)
+                # Handle unexpected processing errors
+                error = error_handler.handle_error(
+                    ErrorCategory.SYSTEM_ERROR,
+                    ErrorSeverity.HIGH,
+                    f"Unexpected error processing {file_info['filename']}: {str(e)}",
+                    file_path=Path(file_info['file_path']),
+                    exception=e
+                )
+                
+                file_info['status'] = 'failed'
+                file_info['errors'] = [error_handler.get_user_friendly_message(error)]
+                
+                results.append({
+                    'file': file_info['filename'],
+                    'success': False,
+                    'errors': [error_handler.get_user_friendly_message(error)],
+                    'warnings': []
+                })
+                
+                logger.error(f"Exception processing {file_info['filename']}: {e}")
         
-        session_data['status'] = 'completed'
-        session_data['output_dir'] = str(output_dir)
+        # Final status update
+        if session_data['status'] not in ['cancelled', 'paused']:
+            if session_data['processed_files'] == len(session_data['files']):
+                session_data['status'] = 'completed'
+            elif session_data['processed_files'] > 0:
+                session_data['status'] = 'completed_with_errors'
+            else:
+                session_data['status'] = 'failed'
+        
+        session_data['current_operation'] = 'completed'
+        session_data['estimated_time_remaining'] = 0
+        
+        # Generate processing summary
+        error_summary = error_handler.get_error_summary()
+        
+        processing_summary = {
+            'total_files': len(session_data['files']),
+            'successful': session_data['processed_files'],
+            'failed': len([f for f in session_data['files'] if f.get('status') == 'failed']),
+            'warnings': len([f for f in session_data['files'] if f.get('warnings')]),
+            'processing_time': round(time.time() - start_time, 2),
+            'error_summary': error_summary
+        }
         
         return jsonify({
-            'session_id': session_id,
-            'status': 'completed',
+            'status': session_data['status'],
+            'message': f'Processing completed: {session_data["processed_files"]}/{len(session_data["files"])} files successful',
             'results': results,
-            'processed_files': session_data['processed_files'],
-            'total_files': session_data['total_files']
+            'summary': processing_summary,
+            'output_directory': str(output_dir) if output_dir else None
         })
         
     except Exception as e:
+        logger.error(f"Critical error in processing: {e}")
+        
+        # Handle critical processing errors
+        error_handler.handle_error(
+            ErrorCategory.SYSTEM_ERROR,
+            ErrorSeverity.CRITICAL,
+            f"Critical processing error: {str(e)}",
+            exception=e
+        )
+        
         if session_id in processing_sessions:
-            processing_sessions[session_id]['status'] = 'error'
-        return jsonify({'error': f'Processing failed: {str(e)}'}), 500
+            processing_sessions[session_id]['status'] = 'failed'
+            processing_sessions[session_id]['current_operation'] = 'failed'
+        
+        return jsonify({
+            'error': 'Critical processing error occurred',
+            'details': str(e),
+            'error_summary': error_handler.get_error_summary()
+        }), 500
 
 @app.route('/status/<session_id>')
 def get_status(session_id):
@@ -449,6 +565,155 @@ def select_artwork(session_id, file_index):
     except Exception as e:
         logger.error(f"Error selecting artwork: {e}")
         return jsonify({'error': f'Failed to select artwork: {str(e)}'}), 500
+
+@app.route('/api/processing-status/<session_id>', methods=['GET'])
+def get_processing_status(session_id):
+    """Get detailed processing status including errors and progress"""
+    try:
+        if session_id not in processing_sessions:
+            return jsonify({'error': 'Invalid session ID'}), 404
+        
+        session_data = processing_sessions[session_id]
+        
+        # Calculate progress
+        total_files = len(session_data['files'])
+        processed_files = session_data.get('processed_files', 0)
+        current_file = session_data.get('current_file', 0)
+        
+        progress_percentage = (processed_files / total_files * 100) if total_files > 0 else 0
+        
+        # Get error summary
+        error_summary = error_handler.get_error_summary()
+        
+        status = {
+            'session_id': session_id,
+            'status': session_data['status'],
+            'total_files': total_files,
+            'processed_files': processed_files,
+            'current_file': current_file,
+            'progress_percentage': round(progress_percentage, 2),
+            'errors': error_summary,
+            'should_stop': error_handler.should_stop_processing,
+            'current_operation': session_data.get('current_operation', 'idle'),
+            'estimated_time_remaining': session_data.get('estimated_time_remaining'),
+            'files': session_data['files']
+        }
+        
+        return jsonify(status)
+        
+    except Exception as e:
+        logger.error(f"Error getting processing status: {e}")
+        return jsonify({'error': f'Failed to get status: {str(e)}'}), 500
+
+@app.route('/api/processing-controls/<session_id>', methods=['POST'])
+def control_processing(session_id):
+    """Control processing operations (pause, resume, cancel, retry)"""
+    try:
+        if session_id not in processing_sessions:
+            return jsonify({'error': 'Invalid session ID'}), 404
+        
+        data = request.get_json()
+        action = data.get('action')
+        
+        session_data = processing_sessions[session_id]
+        
+        if action == 'pause':
+            session_data['status'] = 'paused'
+            session_data['current_operation'] = 'paused'
+            
+        elif action == 'resume':
+            if session_data['status'] == 'paused':
+                session_data['status'] = 'processing'
+                session_data['current_operation'] = 'resuming'
+            
+        elif action == 'cancel':
+            session_data['status'] = 'cancelled'
+            session_data['current_operation'] = 'cancelled'
+            error_handler.should_stop_processing = True
+            
+        elif action == 'retry_errors':
+            # Clear previous errors and reset status
+            error_handler.clear_errors()
+            session_data['status'] = 'uploaded'
+            session_data['current_operation'] = 'ready_for_retry'
+            
+            # Reset failed files to uploaded status
+            for file_info in session_data['files']:
+                if file_info.get('status') == 'failed':
+                    file_info['status'] = 'uploaded'
+                    file_info['error'] = None
+            
+        elif action == 'clear_queue':
+            session_data['files'] = []
+            session_data['status'] = 'empty'
+            session_data['processed_files'] = 0
+            session_data['current_file'] = 0
+            error_handler.clear_errors()
+            
+        else:
+            return jsonify({'error': f'Unknown action: {action}'}), 400
+        
+        return jsonify({
+            'success': True,
+            'message': f'Processing {action} completed',
+            'new_status': session_data['status']
+        })
+        
+    except Exception as e:
+        logger.error(f"Error controlling processing: {e}")
+        return jsonify({'error': f'Failed to control processing: {str(e)}'}), 500
+
+@app.route('/api/error-log/<session_id>', methods=['GET'])
+def get_error_log(session_id):
+    """Get detailed error log for debugging"""
+    try:
+        if session_id not in processing_sessions:
+            return jsonify({'error': 'Invalid session ID'}), 404
+        
+        error_summary = error_handler.get_error_summary()
+        
+        # Add user-friendly messages
+        for error_dict in error_summary['recent_errors']:
+            error = type('Error', (), error_dict)()  # Create object from dict
+            error_dict['user_message'] = error_handler.get_user_friendly_message(error)
+        
+        return jsonify(error_summary)
+        
+    except Exception as e:
+        logger.error(f"Error getting error log: {e}")
+        return jsonify({'error': f'Failed to get error log: {str(e)}'}), 500
+
+@app.route('/api/export-error-log/<session_id>', methods=['POST'])
+def export_error_log(session_id):
+    """Export detailed error log to file"""
+    try:
+        if session_id not in processing_sessions:
+            return jsonify({'error': 'Invalid session ID'}), 404
+        
+        from pathlib import Path
+        import tempfile
+        
+        # Create temporary file for error log
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            temp_path = Path(f.name)
+        
+        error_handler.export_error_log(temp_path)
+        
+        # Read the file content for download
+        log_content = temp_path.read_text(encoding='utf-8')
+        
+        # Clean up temp file
+        temp_path.unlink()
+        
+        return jsonify({
+            'success': True,
+            'log_content': log_content,
+            'filename': f'error_log_{session_id}.txt'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error exporting error log: {e}")
+        return jsonify({'error': f'Failed to export error log: {str(e)}'}), 500
 
 @app.errorhandler(404)
 def not_found(error):
