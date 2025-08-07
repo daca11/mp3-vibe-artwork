@@ -1,0 +1,433 @@
+{% extends "base.html" %}
+
+{% block title %}Artwork Selection - MP3 Artwork Manager{% endblock %}
+
+{% block head %}
+<style>
+.artwork-card {
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.artwork-card:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.artwork-card.selected {
+    border-color: #198754;
+    background-color: #f8fff9;
+}
+
+.artwork-preview {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 6px;
+    object-fit: contain;
+}
+
+.artwork-metadata {
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+.source-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.optimization-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.file-info-card {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.comparison-view {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+@media (max-width: 768px) {
+    .comparison-view {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('main.queue') }}">Queue</a></li>
+                <li class="breadcrumb-item active">Artwork Selection</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-images me-2"></i>Artwork Selection</h2>
+        <p class="text-muted">Choose the best artwork for your MP3 files. Compare embedded artwork with options from MusicBrainz.</p>
+    </div>
+</div>
+
+<!-- File Information Card -->
+<div class="file-info-card" id="file-info-card" style="display: none;">
+    <div class="row">
+        <div class="col-md-8">
+            <h5 id="file-title">Loading...</h5>
+            <div class="row">
+                <div class="col-sm-4">
+                    <strong>Artist:</strong> <span id="file-artist">-</span>
+                </div>
+                <div class="col-sm-4">
+                    <strong>Title:</strong> <span id="file-title-tag">-</span>
+                </div>
+                <div class="col-sm-4">
+                    <strong>Album:</strong> <span id="file-album">-</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 text-end">
+            <button class="btn btn-success" id="apply-selection" disabled>
+                <i class="fas fa-check me-1"></i>Apply Selection
+            </button>
+            <button class="btn btn-secondary ms-2" id="back-to-queue">
+                <i class="fas fa-arrow-left me-1"></i>Back to Queue
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Loading State -->
+<div class="text-center py-5" id="loading-state">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <h5 class="mt-3">Loading artwork options...</h5>
+    <p class="text-muted">Please wait while we gather all available artwork.</p>
+</div>
+
+<!-- No Artwork Found -->
+<div class="text-center py-5" id="no-artwork-state" style="display: none;">
+    <i class="fas fa-image fa-3x text-muted mb-3"></i>
+    <h5>No Artwork Available</h5>
+    <p class="text-muted">No embedded or MusicBrainz artwork was found for this file.</p>
+    <button class="btn btn-primary" id="back-to-queue-no-artwork">
+        <i class="fas fa-arrow-left me-1"></i>Back to Queue
+    </button>
+</div>
+
+<!-- Artwork Comparison Grid -->
+<div class="comparison-view" id="artwork-comparison" style="display: none;">
+    <!-- Artwork cards will be dynamically inserted here -->
+</div>
+
+<!-- Bulk Actions (for future use) -->
+<div class="row mt-4" id="bulk-actions" style="display: none;">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">Bulk Actions</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Apply the same artwork choice to multiple files with similar metadata.</p>
+                <button class="btn btn-outline-primary" id="apply-to-similar">
+                    <i class="fas fa-copy me-1"></i>Apply to Similar Files
+                </button>
+                <button class="btn btn-outline-secondary" id="apply-to-all">
+                    <i class="fas fa-globe me-1"></i>Apply to All Files
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+class ArtworkSelector {
+    constructor() {
+        this.fileId = null;
+        this.artworkOptions = [];
+        this.selectedArtworkId = null;
+        this.init();
+    }
+    
+    init() {
+        // Get file ID from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        this.fileId = urlParams.get('file_id');
+        
+        if (!this.fileId) {
+            this.showError('No file ID provided');
+            return;
+        }
+        
+        this.setupEventListeners();
+        this.loadArtworkOptions();
+    }
+    
+    setupEventListeners() {
+        document.getElementById('apply-selection').addEventListener('click', () => this.applySelection());
+        document.getElementById('back-to-queue').addEventListener('click', () => this.backToQueue());
+        document.getElementById('back-to-queue-no-artwork').addEventListener('click', () => this.backToQueue());
+    }
+    
+    async loadArtworkOptions() {
+        try {
+            const response = await fetch(`/api/artwork/${this.fileId}/compare`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            this.artworkOptions = data.artwork_options;
+            this.fileInfo = data.file_info;
+            
+            this.displayFileInfo();
+            
+            if (this.artworkOptions.length === 0) {
+                this.showNoArtwork();
+            } else {
+                this.displayArtworkOptions();
+            }
+            
+        } catch (error) {
+            console.error('Error loading artwork options:', error);
+            this.showError('Failed to load artwork options: ' + error.message);
+        }
+    }
+    
+    displayFileInfo() {
+        const fileInfoCard = document.getElementById('file-info-card');
+        const metadata = this.fileInfo.metadata || {};
+        
+        document.getElementById('file-title').textContent = this.fileInfo.filename;
+        document.getElementById('file-artist').textContent = metadata.artist || 'Unknown';
+        document.getElementById('file-title-tag').textContent = metadata.title || 'Unknown';
+        document.getElementById('file-album').textContent = metadata.album || 'Unknown';
+        
+        fileInfoCard.style.display = 'block';
+    }
+    
+    displayArtworkOptions() {
+        const container = document.getElementById('artwork-comparison');
+        const loadingState = document.getElementById('loading-state');
+        
+        container.innerHTML = '';
+        
+        this.artworkOptions.forEach((artwork, index) => {
+            const card = this.createArtworkCard(artwork, index);
+            container.appendChild(card);
+        });
+        
+        loadingState.style.display = 'none';
+        container.style.display = 'grid';
+    }
+    
+    createArtworkCard(artwork, index) {
+        const card = document.createElement('div');
+        card.className = 'artwork-card';
+        card.dataset.artworkId = artwork.id;
+        
+        const sourceBadgeClass = artwork.source === 'embedded' ? 'bg-primary' : 'bg-info';
+        const optimizedBadge = artwork.is_optimized ? 
+            '<span class="badge bg-success optimization-badge ms-1">Optimized</span>' : '';
+        
+        const dimensionsText = `${artwork.dimensions.width}×${artwork.dimensions.height}`;
+        const fileSizeText = this.formatFileSize(artwork.file_size);
+        
+        let optimizationInfo = '';
+        if (artwork.optimization_savings) {
+            const savings = artwork.optimization_savings;
+            optimizationInfo = `
+                <div class="mt-2 p-2 bg-light rounded">
+                    <small class="text-success">
+                        <i class="fas fa-compress-arrows-alt me-1"></i>
+                        Optimized: ${this.formatFileSize(savings.bytes_saved)} saved (${savings.percent_saved.toFixed(1)}%)
+                    </small>
+                </div>
+            `;
+        }
+        
+        card.innerHTML = `
+            <div class="text-center">
+                <img src="${artwork.thumbnail_url}" class="artwork-preview mb-3" alt="Artwork preview">
+            </div>
+            
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="mb-0">
+                    Option ${index + 1}
+                    <span class="badge ${sourceBadgeClass} source-badge ms-1">${artwork.source.toUpperCase()}</span>
+                    ${optimizedBadge}
+                </h6>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="artwork-selection" 
+                           id="artwork-${artwork.id}" value="${artwork.id}">
+                    <label class="form-check-label" for="artwork-${artwork.id}">
+                        Select
+                    </label>
+                </div>
+            </div>
+            
+            <div class="artwork-metadata">
+                <div class="row g-1">
+                    <div class="col-6"><strong>Size:</strong> ${dimensionsText}</div>
+                    <div class="col-6"><strong>File Size:</strong> ${fileSizeText}</div>
+                    <div class="col-6"><strong>Format:</strong> ${artwork.format}</div>
+                    <div class="col-6"><strong>Ratio:</strong> ${artwork.aspect_ratio.toFixed(2)}</div>
+                </div>
+                
+                ${this.getMetadataInfo(artwork)}
+                ${optimizationInfo}
+            </div>
+        `;
+        
+        // Add click handler
+        card.addEventListener('click', (e) => {
+            if (e.target.type !== 'radio') {
+                const radio = card.querySelector('input[type="radio"]');
+                radio.checked = true;
+                this.selectArtwork(artwork.id);
+            }
+        });
+        
+        // Add radio change handler
+        const radio = card.querySelector('input[type="radio"]');
+        radio.addEventListener('change', () => {
+            if (radio.checked) {
+                this.selectArtwork(artwork.id);
+            }
+        });
+        
+        return card;
+    }
+    
+    getMetadataInfo(artwork) {
+        if (artwork.source === 'musicbrainz' && artwork.metadata) {
+            const metadata = artwork.metadata;
+            return `
+                <div class="mt-2 p-2 bg-light rounded">
+                    <small>
+                        <div><strong>Release:</strong> ${metadata.release_title || 'Unknown'}</div>
+                        <div><strong>Artist:</strong> ${metadata.release_artist || 'Unknown'}</div>
+                        ${metadata.release_date ? `<div><strong>Date:</strong> ${metadata.release_date}</div>` : ''}
+                        ${metadata.primary_type ? `<div><strong>Type:</strong> ${metadata.primary_type}</div>` : ''}
+                    </small>
+                </div>
+            `;
+        }
+        return '';
+    }
+    
+    selectArtwork(artworkId) {
+        // Update visual selection
+        document.querySelectorAll('.artwork-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        
+        const selectedCard = document.querySelector(`[data-artwork-id="${artworkId}"]`);
+        if (selectedCard) {
+            selectedCard.classList.add('selected');
+        }
+        
+        this.selectedArtworkId = artworkId;
+        document.getElementById('apply-selection').disabled = false;
+    }
+    
+    async applySelection() {
+        if (!this.selectedArtworkId) {
+            alert('Please select an artwork option first.');
+            return;
+        }
+        
+        try {
+            const applyBtn = document.getElementById('apply-selection');
+            applyBtn.disabled = true;
+            applyBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Applying...';
+            
+            const response = await fetch(`/api/artwork/${this.fileId}/select`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    artwork_id: this.selectedArtworkId
+                })
+            });
+            
+            if (response.ok) {
+                this.showSuccess('Artwork selection applied successfully!');
+                setTimeout(() => this.backToQueue(), 2000);
+            } else {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to apply selection');
+            }
+            
+        } catch (error) {
+            console.error('Error applying selection:', error);
+            this.showError('Failed to apply selection: ' + error.message);
+            
+            const applyBtn = document.getElementById('apply-selection');
+            applyBtn.disabled = false;
+            applyBtn.innerHTML = '<i class="fas fa-check me-1"></i>Apply Selection';
+        }
+    }
+    
+    backToQueue() {
+        window.location.href = '/queue';
+    }
+    
+    showNoArtwork() {
+        document.getElementById('loading-state').style.display = 'none';
+        document.getElementById('no-artwork-state').style.display = 'block';
+    }
+    
+    showError(message) {
+        document.getElementById('loading-state').style.display = 'none';
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-danger';
+        alert.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>${message}`;
+        document.querySelector('main .container').insertBefore(alert, document.querySelector('.row'));
+    }
+    
+    showSuccess(message) {
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-success';
+        alert.innerHTML = `<i class="fas fa-check me-2"></i>${message}`;
+        document.querySelector('main .container').insertBefore(alert, document.querySelector('.row'));
+    }
+    
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+}
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    window.artworkSelector = new ArtworkSelector();
+});
+</script>
+{% endblock %}

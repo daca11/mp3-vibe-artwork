@@ -31,149 +31,149 @@
 ## Phase 2: File Upload & Validation (Easy-Medium)
 
 ### File Upload System
-- [ ] **Implement single file upload endpoint**
+- [x] **Implement single file upload endpoint**
   - *Acceptance Criteria:* POST /api/upload accepts single MP3 file, returns file ID
   - *Files:* `app/routes/upload.py`
 
-- [ ] **Add file validation**
+- [x] **Add file validation**
   - *Acceptance Criteria:* Rejects non-MP3 files, validates file size limits (<50MB)
   - *Files:* `app/utils/validation.py`
 
-- [ ] **Create file upload UI with drag & drop**
+- [x] **Create file upload UI with drag & drop**
   - *Acceptance Criteria:* Users can drag/drop or click to upload, shows file selection
   - *Files:* `static/js/upload.js`, update `templates/index.html`
 
-- [ ] **Implement multiple file upload**
+- [x] **Implement multiple file upload**
   - *Acceptance Criteria:* Handles batch upload, shows progress for each file
   - *Files:* Update upload endpoint and UI
 
-- [ ] **Add upload progress indicators**
+- [x] **Add upload progress indicators**
   - *Acceptance Criteria:* Real-time progress bars, file size display, upload status
   - *Files:* Update `static/js/upload.js`
 
 ### File Management
-- [ ] **Create file queue data model**
+- [x] **Create file queue data model**
   - *Acceptance Criteria:* Stores file metadata, processing status, unique IDs
   - *Files:* `app/models/file_queue.py`
 
-- [ ] **Implement queue management endpoints**
+- [x] **Implement queue management endpoints**
   - *Acceptance Criteria:* GET /api/queue lists files, DELETE /api/queue/{id} removes files
   - *Files:* `app/routes/processing.py`
 
 ## Phase 3: MP3 Processing & Metadata (Medium)
 
 ### MP3 Analysis
-- [ ] **Create MP3 metadata extraction service**
+- [x] **Create MP3 metadata extraction service**
   - *Acceptance Criteria:* Extracts artist, title, album from ID3 tags using mutagen
   - *Files:* `app/services/mp3_processor.py`
 
-- [ ] **Implement filename parsing fallback**
+- [x] **Implement filename parsing fallback**
   - *Acceptance Criteria:* Parses "Artist - Title.mp3" format when ID3 tags missing
   - *Files:* Update `mp3_processor.py`
 
-- [ ] **Extract existing embedded artwork**
+- [x] **Extract existing embedded artwork**
   - *Acceptance Criteria:* Extracts APIC frames, saves as temporary files, gets dimensions/size
   - *Files:* Update `mp3_processor.py`
 
-- [ ] **Create processing status tracking**
+- [x] **Create processing status tracking**
   - *Acceptance Criteria:* Updates file status (pending, processing, completed, error)
   - *Files:* `app/models/processing_job.py`
 
 ### Basic Processing Queue UI
-- [ ] **Create processing queue interface**
+- [x] **Create processing queue interface**
   - *Acceptance Criteria:* Displays uploaded files, shows status, allows file removal
   - *Files:* `templates/queue.html`
 
-- [ ] **Add real-time status updates**
+- [x] **Add real-time status updates**
   - *Acceptance Criteria:* Uses WebSocket or polling to update status without refresh
   - *Files:* `static/js/queue.js`
 
 ## Phase 4: Image Processing & Optimization (Medium)
 
 ### Image Handling
-- [ ] **Create image optimization service**
+- [x] **Create image optimization service**
   - *Acceptance Criteria:* Resizes images to max 500x500px, maintains aspect ratio
   - *Files:* `app/services/image_optimizer.py`
 
-- [ ] **Implement file size compression**
+- [x] **Implement file size compression**
   - *Acceptance Criteria:* Compresses images to max 500KB while maintaining quality
   - *Files:* Update `image_optimizer.py`
 
-- [ ] **Add format conversion support**
+- [x] **Add format conversion support**
   - *Acceptance Criteria:* Converts between JPEG/PNG, handles transparency properly
   - *Files:* Update `image_optimizer.py`
 
-- [ ] **Create artwork preview generation**
+- [x] **Create artwork preview generation**
   - *Acceptance Criteria:* Generates thumbnails for UI display
   - *Files:* Update `image_optimizer.py`
 
 ## Phase 5: MusicBrainz Integration (Medium-Hard)
 
 ### API Integration
-- [ ] **Create MusicBrainz service**
+- [x] **Create MusicBrainz service**
   - *Acceptance Criteria:* Searches by artist/title, handles API responses
   - *Files:* `app/services/musicbrainz_service.py`
 
-- [ ] **Implement artwork search**
+- [x] **Implement artwork search**
   - *Acceptance Criteria:* Retrieves cover art URLs from MusicBrainz releases
   - *Files:* Update `musicbrainz_service.py`
 
-- [ ] **Add image downloading from URLs**
+- [x] **Add image downloading from URLs**
   - *Acceptance Criteria:* Downloads artwork from Cover Art Archive, handles timeouts
   - *Files:* Update `musicbrainz_service.py`
 
-- [ ] **Implement rate limiting and retry logic**
+- [x] **Implement rate limiting and retry logic**
   - *Acceptance Criteria:* Respects MusicBrainz rate limits, retries failed requests
   - *Files:* Update `musicbrainz_service.py`
 
 ### Error Handling
-- [ ] **Add comprehensive error handling**
+- [x] **Add comprehensive error handling**
   - *Acceptance Criteria:* Graceful handling of API failures, network issues, invalid responses
   - *Files:* Update all service files
 
-- [ ] **Create error logging system**
+- [x] **Create error logging system**
   - *Acceptance Criteria:* Logs errors to file, displays user-friendly messages in UI
   - *Files:* `app/utils/logging.py`
 
 ## Phase 6: Artwork Selection Interface (Medium-Hard)
 
 ### Artwork Management
-- [ ] **Create artwork service**
+- [x] **Create artwork service**
   - *Acceptance Criteria:* Manages embedded and MusicBrainz artwork, provides unified interface
   - *Files:* `app/services/artwork_service.py`
 
-- [ ] **Implement artwork comparison endpoint**
+- [x] **Implement artwork comparison endpoint**
   - *Acceptance Criteria:* GET /api/artwork/{id} returns all available options with metadata
   - *Files:* `app/routes/artwork.py`
 
-- [ ] **Create artwork selection UI**
+- [x] **Create artwork selection UI**
   - *Acceptance Criteria:* Side-by-side preview, shows dimensions/size, radio button selection
   - *Files:* `templates/artwork_selection.html`, `static/js/artwork.js`
 
-- [ ] **Add artwork preview modal**
+- [x] **Add artwork preview modal**
   - *Acceptance Criteria:* Click to enlarge artwork, shows full metadata
   - *Files:* Update artwork UI
 
-- [ ] **Implement artwork selection endpoint**
+- [x] **Implement artwork selection endpoint**
   - *Acceptance Criteria:* POST /api/artwork/{id}/select saves user choice
   - *Files:* Update `app/routes/artwork.py`
 
 ## Phase 7: File Processing & Output (Hard)
 
 ### MP3 Generation
-- [ ] **Implement artwork embedding**
+- [x] **Implement artwork embedding**
   - *Acceptance Criteria:* Embeds selected artwork into MP3 APIC frame, preserves other metadata
   - *Files:* Update `app/services/mp3_processor.py`
 
-- [ ] **Create output file generation**
+- [x] **Create output file generation**
   - *Acceptance Criteria:* Generates new MP3 with embedded artwork, preserves original filename exactly
   - *Files:* Update `mp3_processor.py`
 
-- [ ] **Add processing pipeline**
+- [x] **Add processing pipeline**
   - *Acceptance Criteria:* Coordinates analysis, artwork selection, optimization, and output generation
   - *Files:* `app/services/processing_pipeline.py`
 
-- [ ] **Implement batch processing**
+- [x] **Implement batch processing**
   - *Acceptance Criteria:* Processes multiple files concurrently, manages resource usage
   - *Files:* Update processing pipeline
 

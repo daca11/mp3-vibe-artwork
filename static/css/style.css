@@ -1,0 +1,189 @@
+/* MP3 Artwork Manager - Custom Styles */
+
+/* Upload area styling */
+.upload-area {
+    background-color: #f8f9fa;
+    border: 2px dashed #dee2e6;
+    border-radius: 0.5rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.upload-area:hover {
+    border-color: #0d6efd;
+    background-color: #e7f1ff;
+}
+
+.upload-area.dragover {
+    border-color: #0d6efd;
+    background-color: #e7f1ff;
+    transform: scale(1.02);
+}
+
+/* File list styling */
+.file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    margin-bottom: 0.5rem;
+    background-color: #fff;
+}
+
+.file-item .file-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.file-item .file-name {
+    font-weight: 500;
+    color: #212529;
+}
+
+.file-item .file-size {
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+/* Progress bars */
+.progress {
+    height: 1.5rem;
+}
+
+.progress-bar {
+    font-size: 0.75rem;
+    line-height: 1.5rem;
+}
+
+/* Status badges */
+.status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.status-pending {
+    background-color: #6c757d;
+}
+
+.status-processing {
+    background-color: #0d6efd;
+}
+
+.status-completed {
+    background-color: #198754;
+}
+
+.status-error {
+    background-color: #dc3545;
+}
+
+/* Artwork preview */
+.artwork-preview {
+    max-width: 60px;
+    max-height: 60px;
+    border-radius: 0.25rem;
+    object-fit: cover;
+}
+
+.artwork-preview-container {
+    position: relative;
+    display: inline-block;
+}
+
+.artwork-preview-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    border-radius: 0.25rem;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.artwork-preview-container:hover .artwork-preview-overlay {
+    opacity: 1;
+}
+
+/* Loading animations */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* Queue table responsiveness */
+@media (max-width: 768px) {
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+    
+    .btn-sm {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+}
+
+/* Drag and drop enhancements */
+.dragging {
+    opacity: 0.5;
+}
+
+.drag-over {
+    background-color: #e7f1ff !important;
+    border-color: #0d6efd !important;
+}
+
+/* Custom scrollbar for file list */
+.file-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.file-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.file-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.file-list::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.file-list::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Utility classes */
+.text-truncate {
+    max-width: 200px;
+}
+
+.btn-icon {
+    padding: 0.25rem 0.5rem;
+}
+
+/* Error message styling */
+.error-message {
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+/* Success message styling */
+.success-message {
+    color: #198754;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
