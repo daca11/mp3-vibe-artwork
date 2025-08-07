@@ -14,6 +14,7 @@ from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, APIC, ID3NoHeaderError
 from processors.file_handler import MP3FileHandler
 from processors.artwork_processor import ArtworkProcessor
+from processors.musicbrainz_client import MusicBrainzClient
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -24,16 +25,28 @@ class FileOperations:
     MP3 copying with artwork embedding, and filename parsing.
     """
     
-    def __init__(self, output_base_dir: Union[str, Path] = "output"):
+    def __init__(self, output_base_dir: Union[str, Path] = "output", enable_musicbrainz: bool = True):
         """
         Initialize file operations.
         
         Args:
             output_base_dir: Base directory for output files
+            enable_musicbrainz: Whether to enable MusicBrainz artwork discovery
         """
         self.output_base_dir = Path(output_base_dir)
         self.mp3_handler = MP3FileHandler()
         self.artwork_processor = ArtworkProcessor()
+        
+        # Initialize MusicBrainz client if enabled
+        self.enable_musicbrainz = enable_musicbrainz
+        self.musicbrainz_client = None
+        if enable_musicbrainz:
+            try:
+                self.musicbrainz_client = MusicBrainzClient()
+                logger.info("MusicBrainz integration enabled")
+            except Exception as e:
+                logger.warning(f"Failed to initialize MusicBrainz client: {e}")
+                self.enable_musicbrainz = False
     
     def create_output_folder(self, subfolder: Optional[str] = None) -> Path:
         """
@@ -443,7 +456,9 @@ class FileOperations:
                         'had_original': True,
                         'was_compliant': artwork_result['is_compliant'] and not artwork_result['needs_processing'],
                         'processing_needed': artwork_result['needs_processing'],
-                        'processing_successful': artwork_result['is_compliant']
+                        'processing_successful': artwork_result['is_compliant'],
+                        'musicbrainz_searched': False,
+                        'musicbrainz_found': False
                     }
                     
                     if artwork_result['is_compliant'] and artwork_result['processed_data']:
@@ -455,8 +470,40 @@ class FileOperations:
                         'had_original': False,
                         'was_compliant': False,
                         'processing_needed': False,
-                        'processing_successful': False
+                        'processing_successful': False,
+                        'musicbrainz_searched': False,
+                        'musicbrainz_found': False
                     }
+                
+                # If no valid artwork found, try MusicBrainz search
+                if not artwork_data and self.enable_musicbrainz:
+                    result['processing_steps'].append("Searching MusicBrainz for artwork")
+                    result['artwork_info']['musicbrainz_searched'] = True
+                    
+                    online_artwork = self.search_artwork_online(
+                        result['metadata'], 
+                        result.get('parsing_info')
+                    )
+                    
+                    if online_artwork:
+                        downloaded_data, downloaded_mime = online_artwork
+                        
+                        # Process downloaded artwork to ensure compliance
+                        artwork_result = self.artwork_processor.process_artwork(
+                            downloaded_data,
+                            force_compliance=True
+                        )
+                        
+                        if artwork_result['is_compliant'] and artwork_result['processed_data']:
+                            artwork_data = artwork_result['processed_data']
+                            artwork_mime = "image/jpeg"
+                            result['artwork_info']['musicbrainz_found'] = True
+                            result['artwork_info']['processing_successful'] = True
+                            logger.info("Successfully found and processed artwork from MusicBrainz")
+                        else:
+                            logger.warning("Downloaded artwork from MusicBrainz could not be processed to compliance")
+                    else:
+                        logger.info("No suitable artwork found on MusicBrainz")
             
             # Step 6: Create output directory
             if output_dir is None:
@@ -485,3 +532,87 @@ class FileOperations:
             result['error'] = error_msg
         
         return result 
+
+    def search_artwork_online(self, metadata: Dict, parsed_info: Dict = None) -> Optional[Tuple[bytes, str]]:
+        """
+        Search for artwork online using MusicBrainz.
+        
+        Args:
+            metadata: Extracted MP3 metadata
+            parsed_info: Parsed filename information (fallback)
+            
+        Returns:
+            Tuple of (artwork_data, mime_type) or None if not found
+        """
+        if not self.enable_musicbrainz or not self.musicbrainz_client:
+            logger.debug("MusicBrainz search disabled or client unavailable")
+            return None
+        
+        try:
+            # Extract search parameters from metadata
+            artist = metadata.get('artist', '').strip()
+            album = metadata.get('album', '').strip()
+            title = metadata.get('title', '').strip()
+            
+            # Use parsed filename info as fallback
+            if not artist and parsed_info:
+                artist = parsed_info.get('artist', '').strip()
+            if not title and parsed_info:
+                title = parsed_info.get('title', '').strip()
+            
+            if not artist:
+                logger.debug("No artist information available for MusicBrainz search")
+                return None
+            
+            logger.info(f"Searching MusicBrainz for artwork: {artist} - {album or title or 'Unknown'}")
+            
+            # Search for releases
+            releases = self.musicbrainz_client.search_and_get_artwork(
+                artist=artist,
+                album=album if album else None,
+                title=title if title else None
+            )
+            
+            if not releases:
+                logger.info("No releases found in MusicBrainz search")
+                return None
+            
+            # Try to download artwork from the best match
+            for release in releases[:3]:  # Try top 3 matches
+                artwork_urls = release.get('artwork_urls', [])
+                
+                if not artwork_urls:
+                    logger.debug(f"No artwork URLs for release: {release['title']}")
+                    continue
+                
+                # Prefer front cover, then any image
+                for artwork in artwork_urls:
+                    if artwork.get('is_front', False) or len(artwork_urls) == 1:
+                        try:
+                            # Try thumbnail first (already optimized size), then full image
+                            url = artwork.get('thumbnail_url') or artwork.get('image_url')
+                            if not url:
+                                continue
+                            
+                            logger.info(f"Downloading artwork from: {url}")
+                            artwork_data = self.musicbrainz_client.download_artwork(url)
+                            
+                            if artwork_data:
+                                # Determine MIME type from URL or use JPEG as default
+                                mime_type = "image/jpeg"
+                                if url.lower().endswith('.png'):
+                                    mime_type = "image/png"
+                                
+                                logger.info(f"Successfully downloaded artwork: {len(artwork_data)} bytes")
+                                return (artwork_data, mime_type)
+                            
+                        except Exception as e:
+                            logger.warning(f"Failed to download artwork from {url}: {e}")
+                            continue
+            
+            logger.info("No suitable artwork found in MusicBrainz results")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error during MusicBrainz artwork search: {e}")
+            return None 

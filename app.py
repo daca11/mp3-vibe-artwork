@@ -30,7 +30,7 @@ Path(app.config['UPLOAD_FOLDER']).mkdir(exist_ok=True)
 Path(app.config['OUTPUT_FOLDER']).mkdir(exist_ok=True)
 
 # Initialize processors
-file_ops = FileOperations(output_base_dir=app.config['OUTPUT_FOLDER'])
+file_ops = FileOperations(output_base_dir=app.config['OUTPUT_FOLDER'], enable_musicbrainz=True)
 mp3_handler = MP3FileHandler()
 artwork_processor = ArtworkProcessor()
 

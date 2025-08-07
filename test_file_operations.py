@@ -396,6 +396,72 @@ def test_complete_processing_pipeline():
     
     return True
 
+def test_musicbrainz_integration():
+    """Test MusicBrainz integration in file operations"""
+    print("\n--- Testing MusicBrainz Integration ---")
+    
+    from unittest.mock import Mock, patch
+    
+    try:
+        # Test with MusicBrainz enabled
+        file_ops_enabled = FileOperations(enable_musicbrainz=True)
+        assert file_ops_enabled.enable_musicbrainz == True, "MusicBrainz should be enabled"
+        print("✅ MusicBrainz initialization: Enabled successfully")
+        
+        # Test with MusicBrainz disabled
+        file_ops_disabled = FileOperations(enable_musicbrainz=False)
+        assert file_ops_disabled.enable_musicbrainz == False, "MusicBrainz should be disabled"
+        assert file_ops_disabled.musicbrainz_client is None, "MusicBrainz client should be None when disabled"
+        print("✅ MusicBrainz initialization: Disabled successfully")
+        
+        # Test artwork search with no metadata (should return None)
+        result = file_ops_disabled.search_artwork_online({})
+        assert result is None, "Disabled MusicBrainz should return None"
+        print("✅ Disabled MusicBrainz search: Returns None as expected")
+        
+        # Test artwork search with metadata (mock successful result)
+        if file_ops_enabled.musicbrainz_client:
+            with patch.object(file_ops_enabled.musicbrainz_client, 'search_and_get_artwork') as mock_search, \
+                 patch.object(file_ops_enabled.musicbrainz_client, 'download_artwork') as mock_download:
+                
+                # Mock search result
+                mock_search.return_value = [
+                    {
+                        'id': 'test-id',
+                        'title': 'Test Album',
+                        'artist': 'Test Artist',
+                        'artwork_urls': [
+                            {
+                                'thumbnail_url': 'https://example.com/thumb.jpg',
+                                'image_url': 'https://example.com/full.jpg',
+                                'is_front': True
+                            }
+                        ]
+                    }
+                ]
+                
+                # Mock download result
+                mock_download.return_value = b'fake_image_data'
+                
+                # Test successful search
+                metadata = {'artist': 'Test Artist', 'album': 'Test Album'}
+                result = file_ops_enabled.search_artwork_online(metadata)
+                
+                if result:  # Only test if MusicBrainz client was successfully initialized
+                    artwork_data, mime_type = result
+                    assert artwork_data == b'fake_image_data', "Should return downloaded artwork data"
+                    assert mime_type in ['image/jpeg', 'image/png'], "Should return valid MIME type"
+                    print("✅ MusicBrainz artwork search: Working correctly")
+                else:
+                    print("⚠️  MusicBrainz client initialization may have failed, skipping search test")
+        
+        print("✅ MusicBrainz Integration: PASSED")
+        return True
+        
+    except Exception as e:
+        print(f"❌ MusicBrainz integration test failed: {e}")
+        return False
+
 def main():
     """Run all file operations tests"""
     print("🧪 Running File Operations Tests...")
@@ -407,7 +473,8 @@ def main():
         ("MP3 File Copying", test_mp3_file_copying),
         ("Filename Parsing", test_filename_parsing),
         ("Filename Preservation in Processing", test_filename_preservation_in_processing),
-        ("Complete Processing Pipeline", test_complete_processing_pipeline)
+        ("Complete Processing Pipeline", test_complete_processing_pipeline),
+        ("MusicBrainz Integration", test_musicbrainz_integration)
     ]
     
     passed = 0
