@@ -422,11 +422,7 @@ class FileOperations:
             result['processing_steps'].append("Extracting file information")
             result['file_info'] = self.mp3_handler.get_file_info(source_path)
             
-            if not result['file_info']['is_valid']:
-                result['error'] = result['file_info']['error']
-                return result
-            
-            # Step 3: Extract metadata
+            # Step 3: Extract metadata (continue even if MP3 is invalid for filename parsing)
             result['processing_steps'].append("Extracting metadata")
             result['metadata'] = self.mp3_handler.extract_metadata(source_path)
             
@@ -434,6 +430,43 @@ class FileOperations:
             if not result['metadata']['artist'] or not result['metadata']['title']:
                 result['processing_steps'].append("Parsing filename for missing metadata")
                 result['parsing_info'] = self.parse_filename_for_metadata(source_path.name)
+            
+            # If MP3 is invalid but we have filename info, continue with artwork processing only
+            if not result['file_info']['is_valid']:
+                # Check if we have enough info from filename to attempt artwork search
+                parsed_info = result.get('parsing_info', {})
+                if parsed_info and parsed_info.get('artist') and process_artwork:
+                    logger.info("MP3 invalid but attempting artwork search from filename")
+                    result['processing_steps'].append("Attempting artwork search despite invalid MP3")
+                    
+                    # Try MusicBrainz search with parsed filename info
+                    if self.enable_musicbrainz:
+                        result['processing_steps'].append("Searching MusicBrainz for artwork")
+                        online_artwork = self.search_artwork_online(result['metadata'], parsed_info)
+                        
+                        if online_artwork:
+                            downloaded_data, downloaded_mime = online_artwork
+                            # Save artwork as separate file since we can't embed in invalid MP3
+                            artwork_filename = source_path.stem + "_artwork" + (".jpg" if downloaded_mime == "image/jpeg" else ".png")
+                            artwork_path = source_path.parent / artwork_filename
+                            
+                            try:
+                                artwork_path.write_bytes(downloaded_data)
+                                result['artwork_info'] = {
+                                    'had_original': False,
+                                    'was_compliant': False,
+                                    'processing_needed': False,
+                                    'processing_successful': True,
+                                    'musicbrainz_searched': True,
+                                    'musicbrainz_found': True,
+                                    'artwork_saved_separately': str(artwork_path)
+                                }
+                                logger.info(f"Saved artwork separately as: {artwork_path}")
+                            except Exception as e:
+                                logger.error(f"Failed to save artwork: {e}")
+                
+                result['error'] = result['file_info']['error']
+                return result
             
             # Step 5: Handle artwork
             artwork_data = None
@@ -549,22 +582,35 @@ class FileOperations:
             return None
         
         try:
-            # Extract search parameters from metadata
-            artist = metadata.get('artist', '').strip()
-            album = metadata.get('album', '').strip()
-            title = metadata.get('title', '').strip()
+            # Extract search parameters from metadata (handle None metadata)
+            if metadata is None:
+                metadata = {}
+            
+            artist = metadata.get('artist', '') or ''
+            album = metadata.get('album', '') or ''
+            title = metadata.get('title', '') or ''
+            
+            # Ensure we have strings, not None
+            artist = artist.strip() if artist else ''
+            album = album.strip() if album else ''
+            title = title.strip() if title else ''
             
             # Use parsed filename info as fallback
             if not artist and parsed_info:
-                artist = parsed_info.get('artist', '').strip()
+                parsed_artist = parsed_info.get('artist', '') or ''
+                artist = parsed_artist.strip() if parsed_artist else ''
             if not title and parsed_info:
-                title = parsed_info.get('title', '').strip()
+                parsed_title = parsed_info.get('title', '') or ''
+                title = parsed_title.strip() if parsed_title else ''
             
             if not artist:
                 logger.debug("No artist information available for MusicBrainz search")
+                logger.debug(f"Metadata: {metadata}")
+                logger.debug(f"Parsed info: {parsed_info}")
                 return None
             
             logger.info(f"Searching MusicBrainz for artwork: {artist} - {album or title or 'Unknown'}")
+            logger.debug(f"Search parameters - Artist: '{artist}', Album: '{album}', Title: '{title}'")
             
             # Search for releases
             releases = self.musicbrainz_client.search_and_get_artwork(
@@ -572,6 +618,8 @@ class FileOperations:
                 album=album if album else None,
                 title=title if title else None
             )
+            
+            logger.debug(f"MusicBrainz search returned {len(releases) if releases else 0} releases")
             
             if not releases:
                 logger.info("No releases found in MusicBrainz search")

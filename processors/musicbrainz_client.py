@@ -87,8 +87,7 @@ class MusicBrainzClient:
             # Perform search
             result = musicbrainzngs.search_releases(
                 query=query,
-                limit=limit,
-                includes=['artist-credits', 'recordings']
+                limit=limit
             )
             
             releases = result.get('release-list', [])
