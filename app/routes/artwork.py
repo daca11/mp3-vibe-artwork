@@ -35,10 +35,9 @@ def get_artwork_options(file_id):
                     'optimized_size': artwork.get('optimized_size')
                 }
                 artwork_options.append(artwork_option)
-        
-        # Add MusicBrainz artwork options (these would be added by processing)
-        for artwork in file_obj.artwork_options:
-            if artwork['source'] == 'musicbrainz':
+            
+            # Add MusicBrainz artwork options (these would be added by processing)
+            elif artwork['source'] == 'musicbrainz':
                 # For MusicBrainz, the image_path is a URL
                 artwork_option = {
                     'id': artwork['id'],
@@ -218,11 +217,11 @@ def compare_artwork(file_id):
                         'source': artwork['source'],
                         'preview_url': artwork['image_path'],
                         'thumbnail_url': artwork['image_path'], # Use full image as thumbnail
-                        'dimensions': "Unknown",
-                        'file_size': "Unknown",
-                        'file_size_mb': "Unknown",
+                        'dimensions': None,
+                        'file_size': None,
+                        'file_size_mb': None,
                         'format': "JPEG", # Assume JPEG
-                        'aspect_ratio': "Unknown",
+                        'aspect_ratio': None,
                         'needs_optimization': False,
                         'metadata': artwork.get('metadata', {}),
                         'is_optimized': False,
