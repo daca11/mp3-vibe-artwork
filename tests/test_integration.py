@@ -166,12 +166,19 @@ class TestCompleteWorkflow:
         with app.app_context():
             # Mock MP3 processing
             mock_audio = MagicMock()
-            mock_audio.tags = {'TIT2': MagicMock(text=['Test Song']), 'TPE1': MagicMock(text=['Test Artist'])}
-            mock_audio.keys.return_value = ['APIC:']
-            mock_apic = MagicMock()
-            mock_apic.data = b'fake_artwork_data'
-            mock_apic.mime = 'image/jpeg'
-            mock_audio.__getitem__.return_value = mock_apic
+            mock_audio.tags = MagicMock()
+            mock_audio.tags.version = (2, 4, 0)
+            mock_audio.tags.__contains__.side_effect = lambda key: key in ['TIT2', 'TPE1', 'TALB', 'APIC:']
+            mock_audio.tags.__getitem__.side_effect = lambda key: {
+                'TIT2': MagicMock(text=['Test Song']),
+                'TPE1': MagicMock(text=['Test Artist']),
+                'TALB': MagicMock(text=['Test Album']),
+                'APIC:': MagicMock(data=b'fake_artwork_data', mime='image/jpeg')
+            }[key]
+            mock_audio.info.length = 180.5
+            mock_audio.info.bitrate = 320000
+            mock_audio.info.sample_rate = 44100
+            mock_audio.info.channels = 2
             mock_mp3.return_value = mock_audio
             
             # Mock MusicBrainz service

@@ -5,7 +5,7 @@ import pytest
 import tempfile
 import os
 from io import BytesIO
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 from app import create_app
 from app.services.mp3_processor import MP3Processor, MP3ProcessingError
 from app.models.processing_job import ProcessingJob, ProcessingStep
@@ -94,29 +94,28 @@ class TestMP3Processor:
             assert result['artist'] is None
             assert result['title'] == 'RandomSong'
     
-    @patch('mutagen.mp3.MP3')
+    @patch('app.services.mp3_processor.MP3')
     def test_extract_metadata_success(self, mock_mp3, app):
         """Test successful metadata extraction"""
         with app.app_context():
             # Mock MP3 file with metadata
-            mock_file = Mock()
+            mock_file = mock_mp3.return_value
             mock_file.info.length = 180.5
             mock_file.info.bitrate = 320
             mock_file.info.sample_rate = 44100
             mock_file.info.channels = 2
             
-            mock_file.tags = {
-                'TIT2': Mock(),
-                'TPE1': Mock(),
-                'TALB': Mock()
-            }
-            mock_file.tags['TIT2'].__str__ = Mock(return_value='Test Song')
-            mock_file.tags['TPE1'].__str__ = Mock(return_value='Test Artist')
-            mock_file.tags['TALB'].__str__ = Mock(return_value='Test Album')
-            mock_file.tags.version = (2, 4, 0)
-            
-            mock_mp3.return_value = mock_file
-            
+            # Mock the tags object
+            mock_tags = MagicMock()
+            mock_tags.version = (2, 4, 0)
+            mock_tags.__contains__.side_effect = lambda key: key in ['TIT2', 'TPE1', 'TALB']
+            mock_tags.__getitem__.side_effect = lambda key: {
+                'TIT2': Mock(__str__=Mock(return_value='Test Song')),
+                'TPE1': Mock(__str__=Mock(return_value='Test Artist')),
+                'TALB': Mock(__str__=Mock(return_value='Test Album'))
+            }[key]
+            mock_file.tags = mock_tags
+
             processor = MP3Processor()
             metadata = processor.extract_metadata('/fake/path.mp3')
             
@@ -127,19 +126,17 @@ class TestMP3Processor:
             assert metadata['album'] == 'Test Album'
             assert metadata['has_id3'] == True
     
-    @patch('mutagen.mp3.MP3')
+    @patch('app.services.mp3_processor.MP3')
     def test_extract_metadata_no_tags(self, mock_mp3, app):
         """Test metadata extraction with no ID3 tags"""
         with app.app_context():
             # Mock MP3 file without tags
-            mock_file = Mock()
+            mock_file = mock_mp3.return_value
             mock_file.info.length = 120.0
             mock_file.info.bitrate = 128
             mock_file.info.sample_rate = 44100
             mock_file.info.channels = 2
             mock_file.tags = None
-            
-            mock_mp3.return_value = mock_file
             
             processor = MP3Processor()
             metadata = processor.extract_metadata('/fake/path.mp3')
@@ -150,7 +147,7 @@ class TestMP3Processor:
             assert metadata['artist'] is None
             assert metadata['has_id3'] == False
     
-    @patch('mutagen.mp3.MP3')
+    @patch('app.services.mp3_processor.MP3')
     def test_extract_embedded_artwork(self, mock_mp3, app):
         """Test embedded artwork extraction"""
         with app.app_context():
@@ -161,9 +158,10 @@ class TestMP3Processor:
             mock_apic.type = 3  # Cover front
             mock_apic.desc = 'Cover'
             
-            mock_file = Mock()
-            mock_file.tags.getall.return_value = [mock_apic]
-            mock_mp3.return_value = mock_file
+            mock_file = mock_mp3.return_value
+            mock_tags = MagicMock()
+            mock_tags.getall.return_value = [mock_apic]
+            mock_file.tags = mock_tags
             
             # Mock PIL Image
             with patch('PIL.Image.open') as mock_image:

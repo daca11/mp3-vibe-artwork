@@ -5,9 +5,10 @@ import pytest
 import tempfile
 import os
 from io import BytesIO
+from unittest.mock import Mock, patch
 from app import create_app
 from app.utils.validation import validate_mp3_file, safe_filename, allowed_file
-from app.models.file_queue import FileQueue, QueuedFile, FileStatus
+from app.models.file_queue import get_queue, FileQueue, QueuedFile, FileStatus
 
 
 @pytest.fixture
@@ -24,6 +25,12 @@ def app():
         os.makedirs(app.config['UPLOAD_FOLDER'])
         os.makedirs(app.config['TEMP_FOLDER'])
         os.makedirs(app.config['OUTPUT_FOLDER'])
+        
+        # Clear the file queue before each test
+        with app.app_context():
+            queue = get_queue()
+            for file in queue.get_all_files():
+                queue.remove_file(file.id)
         
         yield app
 
@@ -224,6 +231,12 @@ class TestUploadEndpoints:
 class TestQueueEndpoints:
     """Test queue management API endpoints"""
     
+    def setup_method(self, method):
+        """Clear the queue before each test"""
+        from app.models.file_queue import get_queue
+        queue = get_queue()
+        queue.clear()
+
     def test_get_queue_empty(self, client):
         """Test getting empty queue"""
         response = client.get('/api/queue')

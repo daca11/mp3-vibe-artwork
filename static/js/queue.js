@@ -6,6 +6,7 @@ class QueueManager {
         this.queueEmpty = document.getElementById('queue-empty');
         this.queueTable = document.getElementById('queue-table');
         this.queueTbody = document.getElementById('queue-tbody');
+        this.files = [];
         
         this.initEventListeners();
         this.loadQueue();
@@ -34,6 +35,7 @@ class QueueManager {
     }
     
     renderQueue(queue) {
+        this.files = queue;
         if (!queue || queue.length === 0) {
             this.queueEmpty.style.display = 'block';
             this.queueTable.style.display = 'none';

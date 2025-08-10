@@ -375,8 +375,11 @@ class ArtworkSelector {
             });
             
             if (response.ok) {
-                this.showSuccess('Artwork selection applied successfully!');
-                setTimeout(() => this.backToQueue(), 2000);
+                this.showSuccess('Artwork selection applied successfully! Proceeding to final step...');
+                
+                // Now trigger the output generation
+                this.generateOutput();
+
             } else {
                 const error = await response.json();
                 throw new Error(error.message || 'Failed to apply selection');
@@ -386,6 +389,54 @@ class ArtworkSelector {
             console.error('Error applying selection:', error);
             this.showError('Failed to apply selection: ' + error.message);
             
+            const applyBtn = document.getElementById('apply-selection');
+            applyBtn.disabled = false;
+            applyBtn.innerHTML = '<i class="fas fa-check me-1"></i>Apply Selection';
+        }
+    }
+
+    async generateOutput() {
+        try {
+            const response = await fetch(`/api/output/${this.fileId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                // The response should be the MP3 file for download
+                const blob = await response.blob();
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let filename = "downloaded.mp3";
+                if (contentDisposition) {
+                    const filenameMatch = contentDisposition.match(/filename="(.+?)"/);
+                    if (filenameMatch.length > 1) {
+                        filename = filenameMatch[1];
+                    }
+                }
+
+                // Create a temporary link to trigger the download
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                
+                this.showSuccess('File is downloading! Redirecting to queue...');
+                setTimeout(() => this.backToQueue(), 3000);
+
+            } else {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to generate output file');
+            }
+        } catch (error) {
+            console.error('Error generating output:', error);
+            this.showError('Failed to generate output: ' + error.message);
+            // Re-enable apply button if output generation fails
             const applyBtn = document.getElementById('apply-selection');
             applyBtn.disabled = false;
             applyBtn.innerHTML = '<i class="fas fa-check me-1"></i>Apply Selection';

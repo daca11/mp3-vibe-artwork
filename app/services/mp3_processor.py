@@ -101,8 +101,8 @@ class MP3Processor:
                     title = match.group(2).strip()
                     
                     # Basic cleanup
-                    artist = re.sub(r'[_\s]+', ' ', artist)
-                    title = re.sub(r'[_\s]+', ' ', title)
+                    artist = re.sub(r'[_]+', ' ', artist).strip()
+                    title = re.sub(r'[_]+', ' ', title).strip()
                     
                     current_app.logger.info(f"Parsed filename '{filename}' -> Artist: '{artist}', Title: '{title}'")
                     return {'artist': artist, 'title': title}

@@ -59,20 +59,20 @@ class MusicBrainzService:
         try:
             self._rate_limit()
             
-            # Build search query
+            # Build fuzzy search query without field prefixes
             query_parts = []
             if artist:
-                query_parts.append(f'artist:"{artist}"')
+                query_parts.append(artist)
             if title:
-                query_parts.append(f'recording:"{title}"')
+                query_parts.append(title)
             if album:
-                query_parts.append(f'release:"{album}"')
+                query_parts.append(album)
             
             if not query_parts:
                 current_app.logger.warning("No search terms provided for MusicBrainz search")
                 return []
             
-            query = " AND ".join(query_parts)
+            query = " ".join(query_parts)
             current_app.logger.info(f"Searching MusicBrainz for: {query}")
             
             # Search for releases
@@ -351,6 +351,9 @@ class MusicBrainzService:
         if output_dir is None:
             output_dir = current_app.config['TEMP_FOLDER']
         
+        if not os.path.isabs(output_dir):
+            output_dir = os.path.join(current_app.root_path, '..', output_dir)
+            
         results = []
         
         for i, artwork in enumerate(artwork_list):

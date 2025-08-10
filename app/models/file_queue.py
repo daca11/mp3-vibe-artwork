@@ -196,6 +196,19 @@ class FileQueue:
     def get_files_by_status(self, status):
         """Get files by status"""
         return [f for f in self._queue.values() if f.status == status]
+
+    def clear(self):
+        """Clear the entire queue"""
+        # Get all file IDs before clearing
+        file_ids = list(self._queue.keys())
+        
+        # Remove each file individually to trigger cleanup
+        for file_id in file_ids:
+            self.remove_file(file_id)
+        
+        # Ensure the queue is empty
+        self._queue.clear()
+        self._save_queue()
     
     def update_file(self, file_id, **kwargs):
         """Update file properties"""

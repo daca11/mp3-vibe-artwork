@@ -163,10 +163,16 @@ class ProcessingJob:
                 if musicbrainz_artwork:
                     download_results = mb_service.batch_download_artwork(musicbrainz_artwork)
                     
-                    # Add successful downloads to queue file
-                    for i, result in enumerate(download_results):
+                    # Process successful downloads
+                    successful_downloads = []
+                    for result in download_results:
                         if result.get('success'):
                             artwork_info = result['artwork_info']
+                            artwork_info['local_path'] = result['local_path']
+                            artwork_info['file_size'] = result['file_size']
+                            successful_downloads.append(artwork_info)
+                            
+                            # Add artwork to the file object in the queue
                             file_obj.add_artwork_option(
                                 source='musicbrainz',
                                 image_path=result['local_path'],
@@ -182,9 +188,9 @@ class ProcessingJob:
                                     'source_url': artwork_info.get('image_url')
                                 }
                             )
-                
-                self.musicbrainz_artwork = musicbrainz_artwork
-                current_app.logger.info(f"MusicBrainz search completed: found {len(musicbrainz_artwork)} artwork options")
+                    
+                    self.musicbrainz_artwork = successful_downloads
+                    current_app.logger.info(f"MusicBrainz search completed: found {len(self.musicbrainz_artwork)} artwork options")
                 
             except MusicBrainzError as e:
                 current_app.logger.error(f"MusicBrainz search failed: {e}")
