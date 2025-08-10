@@ -37,6 +37,8 @@ def sample_file_with_artwork(app):
     """Create a sample file with multiple artwork options"""
     with app.app_context():
         from app.models.file_queue import get_queue
+        from PIL import Image
+        
         queue = get_queue()
         
         # Create a test file
@@ -47,25 +49,37 @@ def sample_file_with_artwork(app):
             mime_type='audio/mpeg'
         )
         
+        # Create temporary artwork files
+        temp_dir = app.config['TEMP_FOLDER']
+        
+        # Oversized artwork (600x600)
+        img_large = Image.new('RGB', (600, 600), color='red')
+        large_artwork_path = os.path.join(temp_dir, 'embedded_artwork.jpg')
+        img_large.save(large_artwork_path, 'JPEG')
+        
+        # MusicBrainz artwork will now be a URL
+        musicbrainz_artwork_url = 'https://coverartarchive.org/release/some-release-id/front-500.jpg'
+
         # Add embedded artwork
         queued_file.add_artwork_option(
             source='embedded',
-            image_path='/tmp/embedded_artwork.jpg',
+            image_path=large_artwork_path,
             dimensions={'width': 600, 'height': 600},
-            file_size=150000,
+            file_size=os.path.getsize(large_artwork_path),
             metadata={'format': 'JPEG', 'description': 'Front cover'}
         )
         
         # Add MusicBrainz artwork
         queued_file.add_artwork_option(
             source='musicbrainz',
-            image_path='/tmp/musicbrainz_artwork.jpg',
-            dimensions={'width': 500, 'height': 500},
-            file_size=120000,
+            image_path=musicbrainz_artwork_url,
+            dimensions=None,
+            file_size=None,
             metadata={
                 'release_title': 'Test Album',
                 'release_artist': 'Test Artist',
-                'primary_type': 'Front'
+                'primary_type': 'Front',
+                'source_url': musicbrainz_artwork_url
             }
         )
         
@@ -75,6 +89,10 @@ def sample_file_with_artwork(app):
         
         # Cleanup
         queue.remove_file(queued_file.id)
+        try:
+            os.unlink(large_artwork_path)
+        except OSError:
+            pass
 
 
 class TestArtworkEndpoints:
@@ -103,7 +121,12 @@ class TestArtworkEndpoints:
         assert 'artwork_options' in data
         assert 'total_options' in data
         assert data['total_options'] >= 2  # Should have embedded + musicbrainz
-    
+        
+        musicbrainz_art = next((art for art in data['artwork_options'] if art['source'] == 'musicbrainz'), None)
+        assert musicbrainz_art is not None
+        assert 'image_url' in musicbrainz_art
+        assert musicbrainz_art['preview_url'] == musicbrainz_art['image_url']
+
     def test_get_artwork_preview_nonexistent_file(self, client):
         """Test getting artwork preview for non-existent file"""
         response = client.get('/api/artwork/nonexistent-id/preview/artwork-id')
@@ -113,7 +136,28 @@ class TestArtworkEndpoints:
         """Test getting preview for non-existent artwork"""
         response = client.get(f'/api/artwork/{sample_file_with_artwork}/preview/nonexistent-artwork')
         assert response.status_code == 404
-    
+
+    def test_get_artwork_preview_success(self, client, sample_file_with_artwork, app):
+        """Test getting artwork preview for both embedded and musicbrainz"""
+        with app.app_context():
+            response = client.get(f'/api/artwork/{sample_file_with_artwork}')
+            data = response.get_json()
+            
+            # Test embedded artwork preview
+            embedded_art = next((art for art in data['artwork_options'] if art['source'] == 'embedded'), None)
+            assert embedded_art is not None
+            preview_response = client.get(f"/api/artwork/{sample_file_with_artwork}/preview/{embedded_art['id']}")
+            assert preview_response.status_code == 200
+            assert preview_response.mimetype == 'image/jpeg'
+
+            # Test MusicBrainz artwork preview (should redirect)
+            musicbrainz_art = next((art for art in data['artwork_options'] if art['source'] == 'musicbrainz'), None)
+            assert musicbrainz_art is not None
+            preview_response = client.get(f"/api/artwork/{sample_file_with_artwork}/preview/{musicbrainz_art['id']}")
+            assert preview_response.status_code == 302 # Found (redirect)
+            assert 'location' in preview_response.headers
+            assert preview_response.headers['location'] == musicbrainz_art['image_url']
+
     def test_select_artwork_no_data(self, client, sample_file_with_artwork):
         """Test selecting artwork without providing artwork_id"""
         response = client.post(f'/api/artwork/{sample_file_with_artwork}/select',
@@ -156,6 +200,42 @@ class TestArtworkEndpoints:
             assert selection_data['selected_artwork_id'] == artwork_id
             assert 'selected_artwork' in selection_data
     
+    def test_select_artwork_with_optimization(self, client, sample_file_with_artwork, app):
+        """Test that oversized artwork is optimized upon selection"""
+        with app.app_context():
+            from app.models.file_queue import get_queue
+            
+            # Get the file and its artwork options
+            response = client.get(f'/api/artwork/{sample_file_with_artwork}')
+            data = response.get_json()
+            
+            # Find the oversized artwork (600x600 in fixture, which is embedded)
+            oversized_artwork = next(
+                (art for art in data['artwork_options'] if art.get('dimensions') and art['dimensions']['width'] > 500), 
+                None
+            )
+            assert oversized_artwork is not None, "Oversized artwork not found in test setup"
+            assert oversized_artwork['source'] == 'embedded'
+            
+            # Select the oversized artwork
+            artwork_id = oversized_artwork['id']
+            response = client.post(f'/api/artwork/{sample_file_with_artwork}/select',
+                                 json={'artwork_id': artwork_id})
+            
+            assert response.status_code == 200, f"API call failed with status {response.status_code}: {response.get_data(as_text=True)}"
+            
+            # Verify that the artwork was optimized and selected
+            queue = get_queue()
+            updated_file = queue.get_file(sample_file_with_artwork)
+            selected_art = updated_file.selected_artwork
+            
+            assert selected_art is not None, "Artwork was not selected"
+            assert selected_art['id'] == artwork_id
+            assert 'optimized_path' in selected_art and selected_art['optimized_path'] is not None
+            assert os.path.exists(selected_art['optimized_path'])
+            assert selected_art['optimized_dimensions']['width'] <= 500
+            assert selected_art['optimized_dimensions']['height'] <= 500
+
     def test_compare_artwork_nonexistent_file(self, client):
         """Test artwork comparison for non-existent file"""
         response = client.get('/api/artwork/nonexistent-id/compare')
@@ -178,6 +258,8 @@ class TestArtworkEndpoints:
             assert 'dimensions' in artwork
             assert 'file_size' in artwork
             assert 'source' in artwork
+            if artwork['source'] == 'musicbrainz':
+                assert artwork['preview_url'].startswith('http')
     
     def test_bulk_select_no_data(self, client):
         """Test bulk selection without data"""

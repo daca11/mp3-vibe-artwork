@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, send_file, current_app
+from flask import Blueprint, jsonify, request, send_file, current_app, redirect
 import os
 from app.models.file_queue import get_queue
 from app.services.image_optimizer import ImageOptimizer
@@ -39,18 +39,16 @@ def get_artwork_options(file_id):
         # Add MusicBrainz artwork options (these would be added by processing)
         for artwork in file_obj.artwork_options:
             if artwork['source'] == 'musicbrainz':
+                # For MusicBrainz, the image_path is a URL
                 artwork_option = {
                     'id': artwork['id'],
                     'source': 'musicbrainz',
-                    'image_path': artwork['image_path'],
-                    'dimensions': artwork['dimensions'],
-                    'file_size': artwork['file_size'],
-                    'metadata': artwork['metadata'],
-                    'preview_url': f'/api/artwork/{file_id}/preview/{artwork["id"]}',
-                    'needs_optimization': artwork.get('needs_optimization', False),
-                    'optimized_path': artwork.get('optimized_path'),
-                    'optimized_dimensions': artwork.get('optimized_dimensions'),
-                    'optimized_size': artwork.get('optimized_size')
+                    'image_url': artwork['image_path'],  # This is a URL
+                    'dimensions': artwork.get('dimensions'),
+                    'file_size': artwork.get('file_size'),
+                    'metadata': artwork.get('metadata', {}),
+                    'preview_url': artwork['image_path'],  # The preview is the direct URL
+                    'needs_optimization': False, # Not applicable for remote images
                 }
                 artwork_options.append(artwork_option)
         
@@ -87,6 +85,10 @@ def get_artwork_preview(file_id, artwork_id):
         if not artwork:
             return jsonify({'error': 'Artwork not found'}), 404
         
+        # For MusicBrainz artwork, redirect to the URL
+        if artwork['source'] == 'musicbrainz':
+            return redirect(artwork['image_path'])
+
         # Determine which image to serve
         image_path = artwork.get('optimized_path') or artwork['image_path']
         
@@ -132,7 +134,40 @@ def select_artwork(file_id):
         if not file_obj:
             return jsonify({'error': 'File not found'}), 404
         
-        # Find and select the artwork
+        # Find the artwork to be selected
+        selected_artwork_obj = None
+        for art in file_obj.artwork_options:
+            if art['id'] == artwork_id:
+                selected_artwork_obj = art
+                break
+
+        if not selected_artwork_obj:
+            return jsonify({'error': 'Artwork not found'}), 404
+
+        # If the selected artwork is from MusicBrainz, we don't need to optimize
+        if selected_artwork_obj['source'] != 'musicbrainz':
+            # Check if optimization is needed before selecting
+            optimizer = ImageOptimizer()
+            image_info = optimizer.get_image_info(selected_artwork_obj['image_path'])
+
+            if image_info.get('needs_optimization', False):
+                try:
+                    # Optimize the image
+                    optimization_result = optimizer.optimize_image(selected_artwork_obj['image_path'])
+                    
+                    # Update the artwork object with optimization data
+                    selected_artwork_obj['optimized_path'] = optimization_result['output_path']
+                    selected_artwork_obj['optimized_dimensions'] = optimization_result['final_dimensions']
+                    selected_artwork_obj['optimized_size'] = optimization_result['final_size']
+                    selected_artwork_obj['needs_optimization'] = False # Mark as optimized
+                    
+                    current_app.logger.info(f"Optimized artwork {artwork_id} for file {file_obj.filename}")
+
+                except Exception as e:
+                    current_app.logger.error(f"Failed to optimize artwork {artwork_id} on selection: {str(e)}")
+                    # Continue without optimization if it fails
+        
+        # Now, select the artwork (which may have been updated)
         if file_obj.select_artwork(artwork_id):
             # Save the queue with the selection
             queue._save_queue()
@@ -177,6 +212,25 @@ def compare_artwork(file_id):
         for artwork in file_obj.artwork_options:
             try:
                 # Get detailed image info
+                if artwork['source'] == 'musicbrainz':
+                    artwork_detail = {
+                        'id': artwork['id'],
+                        'source': artwork['source'],
+                        'preview_url': artwork['image_path'],
+                        'thumbnail_url': artwork['image_path'], # Use full image as thumbnail
+                        'dimensions': "Unknown",
+                        'file_size': "Unknown",
+                        'file_size_mb': "Unknown",
+                        'format': "JPEG", # Assume JPEG
+                        'aspect_ratio': "Unknown",
+                        'needs_optimization': False,
+                        'metadata': artwork.get('metadata', {}),
+                        'is_optimized': False,
+                        'optimization_savings': None
+                    }
+                    comparison_data['artwork_options'].append(artwork_detail)
+                    continue
+
                 image_path = artwork.get('optimized_path') or artwork['image_path']
                 
                 if os.path.exists(image_path):
@@ -218,7 +272,7 @@ def compare_artwork(file_id):
         
         # Sort by source (embedded first) and quality
         comparison_data['artwork_options'].sort(
-            key=lambda x: (x['source'] != 'embedded', -x['file_size'])
+            key=lambda x: (x['source'] != 'embedded', -(x['file_size'] if isinstance(x['file_size'], int) else 0))
         )
         
         return jsonify(comparison_data), 200

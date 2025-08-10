@@ -252,9 +252,10 @@ class ArtworkSelector {
         const optimizedBadge = artwork.is_optimized ? 
             '<span class="badge bg-success optimization-badge ms-1">Optimized</span>' : '';
         
-        const dimensionsText = `${artwork.dimensions.width}×${artwork.dimensions.height}`;
-        const fileSizeText = this.formatFileSize(artwork.file_size);
-        
+        const dimensionsText = artwork.dimensions && artwork.dimensions.width ? `${artwork.dimensions.width}×${artwork.dimensions.height}` : 'Unknown';
+        const fileSizeText = artwork.file_size ? this.formatFileSize(artwork.file_size) : 'Unknown';
+        const aspectRatioText = artwork.aspect_ratio ? artwork.aspect_ratio.toFixed(2) : 'Unknown';
+
         let optimizationInfo = '';
         if (artwork.optimization_savings) {
             const savings = artwork.optimization_savings;
@@ -293,7 +294,7 @@ class ArtworkSelector {
                     <div class="col-6"><strong>Size:</strong> ${dimensionsText}</div>
                     <div class="col-6"><strong>File Size:</strong> ${fileSizeText}</div>
                     <div class="col-6"><strong>Format:</strong> ${artwork.format}</div>
-                    <div class="col-6"><strong>Ratio:</strong> ${artwork.aspect_ratio.toFixed(2)}</div>
+                    <div class="col-6"><strong>Ratio:</strong> ${aspectRatioText}</div>
                 </div>
                 
                 ${this.getMetadataInfo(artwork)}

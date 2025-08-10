@@ -159,37 +159,26 @@ class ProcessingJob:
                     max_results=3  # Limit to avoid too many requests
                 )
                 
-                # Download the artwork
+                # Add MusicBrainz artwork to the file object
                 if musicbrainz_artwork:
-                    download_results = mb_service.batch_download_artwork(musicbrainz_artwork)
+                    for artwork_info in musicbrainz_artwork:
+                        file_obj.add_artwork_option(
+                            source='musicbrainz',
+                            image_path=artwork_info.get('image_url'), # Use URL directly
+                            dimensions=None,  # Will be determined later if needed
+                            file_size=None, # Cannot determine file size from URL directly
+                            metadata={
+                                'release_id': artwork_info.get('release_id'),
+                                'release_title': artwork_info.get('release_title'),
+                                'release_artist': artwork_info.get('release_artist'),
+                                'release_date': artwork_info.get('release_date'),
+                                'primary_type': artwork_info.get('primary_type'),
+                                'is_front': artwork_info.get('is_front'),
+                                'source_url': artwork_info.get('image_url')
+                            }
+                        )
                     
-                    # Process successful downloads
-                    successful_downloads = []
-                    for result in download_results:
-                        if result.get('success'):
-                            artwork_info = result['artwork_info']
-                            artwork_info['local_path'] = result['local_path']
-                            artwork_info['file_size'] = result['file_size']
-                            successful_downloads.append(artwork_info)
-                            
-                            # Add artwork to the file object in the queue
-                            file_obj.add_artwork_option(
-                                source='musicbrainz',
-                                image_path=result['local_path'],
-                                dimensions=None,  # Will be determined later
-                                file_size=result['file_size'],
-                                metadata={
-                                    'release_id': artwork_info.get('release_id'),
-                                    'release_title': artwork_info.get('release_title'),
-                                    'release_artist': artwork_info.get('release_artist'),
-                                    'release_date': artwork_info.get('release_date'),
-                                    'primary_type': artwork_info.get('primary_type'),
-                                    'is_front': artwork_info.get('is_front'),
-                                    'source_url': artwork_info.get('image_url')
-                                }
-                            )
-                    
-                    self.musicbrainz_artwork = successful_downloads
+                    self.musicbrainz_artwork = musicbrainz_artwork
                     current_app.logger.info(f"MusicBrainz search completed: found {len(self.musicbrainz_artwork)} artwork options")
                 
             except MusicBrainzError as e:
@@ -238,43 +227,6 @@ class ProcessingJob:
                     optimized_artwork.append(artwork)
             
             self.embedded_artwork = optimized_artwork
-            
-            # Also optimize MusicBrainz artwork
-            optimized_mb_artwork = []
-            for artwork in self.musicbrainz_artwork:
-                try:
-                    # Get image info first
-                    image_info = optimizer.get_image_info(artwork['local_path'])
-                    artwork.update({
-                        'dimensions': image_info['dimensions'],
-                        'needs_optimization': image_info['needs_optimization']
-                    })
-                    
-                    if artwork.get('needs_optimization', False):
-                        current_app.logger.info(f"Optimizing MusicBrainz artwork: {artwork['local_path']}")
-                        optimization_result = optimizer.optimize_image(
-                            artwork['local_path'],
-                            target_format='JPEG',
-                            quality=90
-                        )
-                        
-                        artwork.update({
-                            'optimized_path': optimization_result['output_path'],
-                            'optimized_dimensions': optimization_result['final_dimensions'],
-                            'optimized_size': optimization_result['final_size'],
-                            'optimization_result': optimization_result
-                        })
-                    else:
-                        current_app.logger.info(f"MusicBrainz artwork already meets requirements: {artwork['local_path']}")
-                    
-                    optimized_mb_artwork.append(artwork)
-                    
-                except ImageOptimizationError as e:
-                    current_app.logger.error(f"Failed to optimize MusicBrainz artwork: {e}")
-                    # Keep original artwork even if optimization fails
-                    optimized_mb_artwork.append(artwork)
-            
-            self.musicbrainz_artwork = optimized_mb_artwork
             
             # Update final status - ready for user selection
             self.update_step(ProcessingStep.WAITING_USER_SELECTION)

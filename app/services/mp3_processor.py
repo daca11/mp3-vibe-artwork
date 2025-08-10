@@ -161,12 +161,7 @@ class MP3Processor:
                         'mime_type': apic.mime,
                         'picture_type': apic.type,
                         'description': apic.desc,
-                        'index': i,
-                        'needs_optimization': (
-                            width > current_app.config.get('MAX_ARTWORK_WIDTH', 500) or
-                            height > current_app.config.get('MAX_ARTWORK_HEIGHT', 500) or
-                            file_size > current_app.config.get('MAX_ARTWORK_SIZE', 500 * 1024)
-                        )
+                        'index': i
                     }
                     
                     artwork_list.append(artwork_info)

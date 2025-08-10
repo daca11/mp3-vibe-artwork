@@ -239,67 +239,10 @@ class MusicBrainzService:
             current_app.logger.error(f"Error parsing cover art image: {str(e)}")
             return None
     
-    def download_artwork(self, artwork_info, output_path=None):
-        """
-        Download artwork from URL to local file
-        Returns path to downloaded file
-        """
-        try:
-            image_url = artwork_info.get('image_url')
-            if not image_url:
-                raise MusicBrainzError("No image URL provided")
-            
-            if output_path is None:
-                # Generate temporary file
-                temp_file = tempfile.NamedTemporaryFile(
-                    delete=False,
-                    suffix='_musicbrainz.jpg',
-                    dir=current_app.config['TEMP_FOLDER']
-                )
-                output_path = temp_file.name
-                temp_file.close()
-            
-            current_app.logger.info(f"Downloading artwork from {image_url}")
-            
-            # Download the image
-            response = requests.get(image_url, timeout=self.timeout, stream=True)
-            response.raise_for_status()
-            
-            # Write to file
-            with open(output_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            
-            # Get file size
-            file_size = os.path.getsize(output_path)
-            
-            current_app.logger.info(f"Downloaded artwork to {output_path} ({file_size} bytes)")
-            
-            return {
-                'success': True,
-                'local_path': output_path,
-                'file_size': file_size,
-                'source_url': image_url,
-                'artwork_info': artwork_info
-            }
-            
-        except Exception as e:
-            error_msg = f"Failed to download artwork: {str(e)}"
-            current_app.logger.error(error_msg)
-            
-            # Clean up partial download
-            if output_path and os.path.exists(output_path):
-                try:
-                    os.unlink(output_path)
-                except:
-                    pass
-            
-            raise MusicBrainzError(error_msg)
-    
     def search_and_get_artwork(self, artist, title, album=None, max_results=5):
         """
         Complete workflow: search for releases and get their cover art
-        Returns list of artwork options
+        Returns list of artwork options with URLs
         """
         try:
             current_app.logger.info(f"Starting artwork search for: {artist} - {title}")
@@ -342,41 +285,6 @@ class MusicBrainzService:
             error_msg = f"Artwork search workflow failed: {str(e)}"
             current_app.logger.error(error_msg)
             raise MusicBrainzError(error_msg)
-    
-    def batch_download_artwork(self, artwork_list, output_dir=None):
-        """
-        Download multiple artworks
-        Returns list of download results
-        """
-        if output_dir is None:
-            output_dir = current_app.config['TEMP_FOLDER']
-        
-        if not os.path.isabs(output_dir):
-            output_dir = os.path.join(current_app.root_path, '..', output_dir)
-            
-        results = []
-        
-        for i, artwork in enumerate(artwork_list):
-            try:
-                # Generate output filename
-                filename = f"musicbrainz_{artwork.get('release_id', 'unknown')}_{i}.jpg"
-                output_path = os.path.join(output_dir, filename)
-                
-                result = self.download_artwork(artwork, output_path)
-                results.append(result)
-                
-            except Exception as e:
-                current_app.logger.error(f"Failed to download artwork {i}: {str(e)}")
-                results.append({
-                    'success': False,
-                    'error': str(e),
-                    'artwork_info': artwork
-                })
-        
-        successful = sum(1 for r in results if r.get('success', False))
-        current_app.logger.info(f"Batch download completed: {successful}/{len(artwork_list)} successful")
-        
-        return results
     
     def test_connection(self):
         """Test MusicBrainz API connection"""
