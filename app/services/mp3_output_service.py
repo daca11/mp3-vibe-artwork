@@ -11,6 +11,7 @@ from mutagen.id3 import ID3, APIC, ID3NoHeaderError
 from PIL import Image
 import mimetypes
 from app.utils.safe_filename import safe_filename
+import requests
 
 
 class MP3OutputError(Exception):
@@ -143,7 +144,40 @@ class MP3OutputService:
                     pass
             
             raise MP3OutputError(error_msg)
-    
+
+    def _download_artwork_if_needed(self, artwork_obj):
+        """
+        Download artwork from URL if it's from a remote source like MusicBrainz
+        Returns the local path to the artwork
+        """
+        if artwork_obj.get('source') == 'musicbrainz':
+            url = artwork_obj.get('image_path')
+            if not url:
+                raise MP3OutputError("No URL found for MusicBrainz artwork")
+
+            try:
+                current_app.logger.info(f"Downloading MusicBrainz artwork from {url}")
+                response = requests.get(url, stream=True, timeout=10)
+                response.raise_for_status()
+
+                temp_file = tempfile.NamedTemporaryFile(
+                    delete=False,
+                    suffix='.jpg',
+                    dir=current_app.config['TEMP_FOLDER']
+                )
+                
+                with open(temp_file.name, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                
+                return temp_file.name
+
+            except requests.RequestException as e:
+                raise MP3OutputError(f"Failed to download artwork from {url}: {e}")
+        
+        # For embedded artwork, return the existing path
+        return artwork_obj.get('optimized_path') or artwork_obj['image_path']
+
     def process_file_with_selection(self, file_obj, output_filename=None):
         """
         Process a file object with selected artwork
@@ -161,39 +195,49 @@ class MP3OutputService:
             
             selected_artwork = file_obj.selected_artwork
             
-            # Determine artwork path (use optimized version if available)
-            artwork_path = selected_artwork.get('optimized_path') or selected_artwork['image_path']
+            # Download artwork if it's from a remote source
+            local_artwork_path = self._download_artwork_if_needed(selected_artwork)
             
-            if not os.path.exists(artwork_path):
-                raise MP3OutputError(f"Selected artwork not found: {artwork_path}")
-            
-            # Generate output filename
-            if output_filename is None:
-                base_name = os.path.splitext(file_obj.filename)[0]
-                output_filename = f"{base_name}_with_artwork.mp3"
-            
-            output_filename = safe_filename(output_filename)
-            output_path = os.path.join(current_app.config['OUTPUT_FOLDER'], output_filename)
-            
-            # Embed artwork
-            result = self.embed_artwork(
-                mp3_file_path=file_obj.file_path,
-                artwork_path=artwork_path,
-                output_path=output_path
-            )
-            
-            # Add file-specific metadata
-            result.update({
-                'original_filename': file_obj.filename,
-                'output_filename': output_filename,
-                'selected_artwork_source': selected_artwork['source'],
-                'artwork_metadata': selected_artwork.get('metadata', {})
-            })
-            
-            current_app.logger.info(f"Successfully processed {file_obj.filename} -> {output_filename}")
-            
-            return result
-            
+            try:
+                if not os.path.exists(local_artwork_path):
+                    raise MP3OutputError(f"Selected artwork not found at local path: {local_artwork_path}")
+
+                # Generate output filename
+                if output_filename is None:
+                    base_name = os.path.splitext(file_obj.filename)[0]
+                    output_filename = f"{base_name}_with_artwork.mp3"
+                
+                output_filename = safe_filename(output_filename)
+                output_path = os.path.join(current_app.config['OUTPUT_FOLDER'], output_filename)
+                
+                # Embed artwork
+                result = self.embed_artwork(
+                    mp3_file_path=file_obj.file_path,
+                    artwork_path=local_artwork_path,
+                    output_path=output_path
+                )
+                
+                # Add file-specific metadata
+                result.update({
+                    'original_filename': file_obj.filename,
+                    'output_filename': output_filename,
+                    'selected_artwork_source': selected_artwork['source'],
+                    'artwork_metadata': selected_artwork.get('metadata', {})
+                })
+                
+                current_app.logger.info(f"Successfully processed {file_obj.filename} -> {output_filename}")
+                
+                return result
+
+            finally:
+                # Clean up temporary downloaded artwork file
+                if selected_artwork.get('source') == 'musicbrainz' and os.path.exists(local_artwork_path):
+                    try:
+                        os.unlink(local_artwork_path)
+                        current_app.logger.info(f"Cleaned up temporary artwork file: {local_artwork_path}")
+                    except Exception as e:
+                        current_app.logger.error(f"Failed to clean up temporary artwork file {local_artwork_path}: {e}")
+
         except Exception as e:
             error_msg = f"Failed to process file {file_obj.filename}: {str(e)}"
             current_app.logger.error(error_msg)

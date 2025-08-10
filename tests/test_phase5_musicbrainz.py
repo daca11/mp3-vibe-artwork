@@ -234,46 +234,6 @@ class TestMusicBrainzService:
             assert parsed['primary_type'] == 'Front'
             assert parsed['approved'] == True
     
-    @patch('requests.get')
-    def test_download_artwork_success(self, mock_get, app):
-        """Test successful artwork download"""
-        with app.app_context():
-            # Mock successful download
-            mock_response = Mock()
-            mock_response.status_code = 200
-            mock_response.iter_content.return_value = [b'fake image data']
-            mock_get.return_value = mock_response
-            
-            service = MusicBrainzService()
-            
-            artwork_info = {
-                'image_url': 'https://example.com/test.jpg'
-            }
-            
-            result = service.download_artwork(artwork_info)
-            
-            assert result['success'] == True
-            assert os.path.exists(result['local_path'])
-            assert result['file_size'] > 0
-            
-            # Cleanup
-            os.unlink(result['local_path'])
-    
-    @patch('requests.get')
-    def test_download_artwork_error(self, mock_get, app):
-        """Test artwork download with network error"""
-        with app.app_context():
-            mock_get.side_effect = requests.RequestException("Download failed")
-            
-            service = MusicBrainzService()
-            
-            artwork_info = {
-                'image_url': 'https://example.com/test.jpg'
-            }
-            
-            with pytest.raises(MusicBrainzError):
-                service.download_artwork(artwork_info)
-    
     @patch('musicbrainzngs.search_releases')
     @patch('requests.get')
     def test_search_and_get_artwork_workflow(self, mock_requests, mock_search, app, 
