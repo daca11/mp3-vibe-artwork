@@ -39,6 +39,7 @@ class MP3OutputService:
         Returns:
             dict with success status, output path, and metadata
         """
+        optimization_result = None
         try:
             if not os.path.exists(mp3_file_path):
                 raise MP3OutputError(f"MP3 file not found: {mp3_file_path}")
@@ -68,7 +69,8 @@ class MP3OutputService:
                 temp_file.close()
             
             # Copy original file to output location
-            shutil.copy2(mp3_file_path, output_path)
+            with open(mp3_file_path, 'rb') as f_in, open(output_path, 'wb') as f_out:
+                f_out.write(f_in.read())
             
             current_app.logger.info(f"Embedding artwork from {artwork_path} into {output_path}")
             
@@ -141,7 +143,8 @@ class MP3OutputService:
                 'artwork_size': artwork_size,
                 'size_increase': output_size - original_size,
                 'mime_type': mime_type,
-                'artwork_embedded': True
+                'artwork_embedded': True,
+                'optimization_result': optimization_result
             }
             
         except Exception as e:

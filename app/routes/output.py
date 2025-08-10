@@ -36,6 +36,14 @@ def generate_output(file_id):
         file_obj.output_size = result['output_size']
         file_obj.output_filename = result['output_filename']
         file_obj.status = FileStatus.COMPLETED
+
+        # Update artwork option with optimized path
+        if result.get('optimization_result') and result['optimization_result']['success']:
+            optimized_path = result['optimization_result']['output_path']
+            for artwork in file_obj.artwork_options:
+                if artwork['id'] == file_obj.selected_artwork['id']:
+                    artwork['optimized_path'] = optimized_path
+                    break
         
         # Save queue
         queue._save_queue()
@@ -100,6 +108,15 @@ def generate_batch_output():
                     file_obj.output_size = result['result']['output_size']
                     file_obj.output_filename = result['result']['output_filename']
                     file_obj.status = FileStatus.COMPLETED
+                    
+                    # Update artwork option with optimized path for batch processing
+                    if result['result'].get('optimization_result') and result['result']['optimization_result']['success']:
+                        optimized_path = result['result']['optimization_result']['output_path']
+                        for artwork in file_obj.artwork_options:
+                            if artwork['id'] == file_obj.selected_artwork['id']:
+                                artwork['optimized_path'] = optimized_path
+                                break
+                                
                     output_files.append(result['result']['output_path'])
         
         # Create ZIP archive if requested
