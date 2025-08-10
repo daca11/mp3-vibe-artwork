@@ -2,6 +2,9 @@ from flask import Blueprint, jsonify, request, send_file, current_app, redirect
 import os
 from app.models.file_queue import get_queue
 from app.services.image_optimizer import ImageOptimizer
+import requests
+from PIL import Image
+from io import BytesIO
 
 bp = Blueprint('artwork', __name__, url_prefix='/api')
 
@@ -212,21 +215,58 @@ def compare_artwork(file_id):
             try:
                 # Get detailed image info
                 if artwork['source'] == 'musicbrainz':
-                    artwork_detail = {
-                        'id': artwork['id'],
-                        'source': artwork['source'],
-                        'preview_url': artwork['image_path'],
-                        'thumbnail_url': artwork['image_path'], # Use full image as thumbnail
-                        'dimensions': None,
-                        'file_size': None,
-                        'file_size_mb': None,
-                        'format': "JPEG", # Assume JPEG
-                        'aspect_ratio': None,
-                        'needs_optimization': False,
-                        'metadata': artwork.get('metadata', {}),
-                        'is_optimized': False,
-                        'optimization_savings': None
-                    }
+                    try:
+                        # Fetch image from URL
+                        response = requests.get(artwork['image_path'], timeout=10)
+                        response.raise_for_status()
+                        
+                        image_data = response.content
+                        file_size = len(image_data)
+                        
+                        # Get dimensions
+                        img = Image.open(BytesIO(image_data))
+                        dimensions = {'width': img.width, 'height': img.height}
+                        aspect_ratio = img.width / img.height if img.height > 0 else 0
+                        
+                        # Get format
+                        image_format = img.format or "JPEG" # Fallback to JPEG
+
+                        artwork_detail = {
+                            'id': artwork['id'],
+                            'source': artwork['source'],
+                            'preview_url': artwork['image_path'],
+                            'thumbnail_url': artwork['image_path'],
+                            'dimensions': dimensions,
+                            'file_size': file_size,
+                            'format': image_format,
+                            'aspect_ratio': aspect_ratio,
+                            'needs_optimization': False,
+                            'metadata': artwork.get('metadata', {}),
+                            'is_optimized': False,
+                            'optimization_savings': None
+                        }
+
+                    except requests.exceptions.RequestException as e:
+                        current_app.logger.warning(f"Failed to fetch MusicBrainz image {artwork['image_path']}: {e}")
+                        artwork_detail = {
+                            'id': artwork['id'],
+                            'source': artwork['source'],
+                            'preview_url': artwork['image_path'],
+                            'thumbnail_url': artwork['image_path'],
+                            'dimensions': None,
+                            'file_size': None,
+                            'format': "N/A",
+                            'aspect_ratio': None,
+                            'needs_optimization': False,
+                            'metadata': artwork.get('metadata', {}),
+                            'is_optimized': False,
+                            'optimization_savings': None,
+                            'error': f"Failed to fetch: {e}"
+                        }
+                    except Exception as e:
+                        current_app.logger.error(f"Error processing MusicBrainz image {artwork['image_path']}: {e}")
+                        continue
+
                     comparison_data['artwork_options'].append(artwork_detail)
                     continue
 
