@@ -184,6 +184,15 @@ class FileQueue:
                 except Exception as e:
                     current_app.logger.error(f"Failed to remove output file {file_obj.output_path}: {e}")
             
+            # Clean up artwork files
+            if file_obj.artwork_options:
+                for artwork in file_obj.artwork_options:
+                    if artwork.get('image_path') and os.path.exists(artwork['image_path']):
+                        try:
+                            os.remove(artwork['image_path'])
+                        except Exception as e:
+                            current_app.logger.error(f"Failed to remove artwork file {artwork['image_path']}: {e}")
+            
             del self._queue[file_id]
             self._save_queue()
             return True
