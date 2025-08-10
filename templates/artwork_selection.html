@@ -401,7 +401,10 @@ class ArtworkSelector {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
-                }
+                },
+                body: JSON.stringify({
+                    artwork_id: this.selectedArtworkId
+                })
             });
 
             if (response.ok) {
