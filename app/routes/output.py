@@ -4,7 +4,7 @@ Output and download routes for MP3 Artwork Manager
 from flask import Blueprint, jsonify, request, send_file, current_app
 import os
 import tempfile
-from app.models.file_queue import get_queue
+from app.models.file_queue import get_queue, FileStatus
 from app.services.mp3_output_service import MP3OutputService, MP3OutputError
 
 bp = Blueprint('output', __name__, url_prefix='/api')
@@ -14,7 +14,7 @@ bp = Blueprint('output', __name__, url_prefix='/api')
 def generate_output(file_id):
     """Generate output MP3 file with selected artwork"""
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         output_filename = data.get('output_filename')
         
         queue = get_queue()
@@ -34,7 +34,8 @@ def generate_output(file_id):
         # Update file object with output info
         file_obj.output_path = result['output_path']
         file_obj.output_size = result['output_size']
-        file_obj.status = 'completed'
+        file_obj.output_filename = result['output_filename']
+        file_obj.status = FileStatus.COMPLETED
         
         # Save queue
         queue._save_queue()
@@ -64,7 +65,7 @@ def generate_output(file_id):
 def generate_batch_output():
     """Generate output files for multiple files"""
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         file_ids = data.get('file_ids', [])
         output_pattern = data.get('output_pattern', '{filename}_with_artwork.mp3')
         create_zip = data.get('create_zip', False)
@@ -97,7 +98,8 @@ def generate_batch_output():
                 if file_obj:
                     file_obj.output_path = result['result']['output_path']
                     file_obj.output_size = result['result']['output_size']
-                    file_obj.status = 'completed'
+                    file_obj.output_filename = result['result']['output_filename']
+                    file_obj.status = FileStatus.COMPLETED
                     output_files.append(result['result']['output_path'])
         
         # Create ZIP archive if requested
@@ -158,9 +160,7 @@ def download_file(file_id):
             return jsonify({'error': f'Invalid output file: {validation["error"]}'}), 500
         
         # Determine download filename
-        download_filename = os.path.basename(file_obj.output_path)
-        if hasattr(file_obj, 'output_filename'):
-            download_filename = file_obj.output_filename
+        download_filename = file_obj.output_filename or os.path.basename(file_obj.output_path)
         
         current_app.logger.info(f"Serving download for {file_obj.filename} -> {download_filename}")
         
@@ -265,7 +265,7 @@ def output_status():
 def cleanup_output_files():
     """Clean up output files and temporary files"""
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         file_ids = data.get('file_ids', [])
         cleanup_all = data.get('cleanup_all', False)
         

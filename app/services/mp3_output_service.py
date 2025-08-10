@@ -10,6 +10,7 @@ from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, APIC, ID3NoHeaderError
 from PIL import Image
 import mimetypes
+from app.utils.safe_filename import safe_filename
 
 
 class MP3OutputError(Exception):
@@ -171,6 +172,7 @@ class MP3OutputService:
                 base_name = os.path.splitext(file_obj.filename)[0]
                 output_filename = f"{base_name}_with_artwork.mp3"
             
+            output_filename = safe_filename(output_filename)
             output_path = os.path.join(current_app.config['OUTPUT_FOLDER'], output_filename)
             
             # Embed artwork
@@ -220,6 +222,7 @@ class MP3OutputService:
                     base_name = os.path.splitext(file_obj.filename)[0]
                     output_filename = output_pattern.replace('{filename}', base_name)
                 
+                output_filename = safe_filename(output_filename) if output_filename else None
                 result = self.process_file_with_selection(file_obj, output_filename)
                 results.append({
                     'file_id': file_obj.id,

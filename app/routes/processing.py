@@ -82,7 +82,7 @@ def process_file(file_id):
             return jsonify({
                 'message': 'Processing completed',
                 'file_id': file_id,
-                'status': 'completed',
+                'status': FileStatus.COMPLETED.value,
                 'job_result': job_result
             }), 200
             

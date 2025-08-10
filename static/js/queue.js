@@ -182,6 +182,14 @@ class QueueManager {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
     
+    showSuccess(message) {
+        alert(message);
+    }
+    
+    showError(message) {
+        alert(message);
+    }
+    
     async processFile(fileId) {
         try {
             const response = await fetch(`/api/process/${fileId}`, {
@@ -192,10 +200,10 @@ class QueueManager {
                 this.loadQueue(); // Refresh the queue
             } else {
                 const error = await response.json();
-                alert('Processing failed: ' + (error.message || 'Unknown error'));
+                this.showError('Processing failed: ' + (error.message || 'Unknown error'));
             }
         } catch (error) {
-            alert('Processing failed: ' + error.message);
+            this.showError('Processing failed: ' + error.message);
         }
     }
     
@@ -209,10 +217,10 @@ class QueueManager {
                 this.loadQueue(); // Refresh the queue
             } else {
                 const error = await response.json();
-                alert('Batch processing failed: ' + (error.message || 'Unknown error'));
+                this.showError('Batch processing failed: ' + (error.message || 'Unknown error'));
             }
         } catch (error) {
-            alert('Batch processing failed: ' + error.message);
+            this.showError('Batch processing failed: ' + error.message);
         }
     }
     
@@ -230,10 +238,10 @@ class QueueManager {
                 this.loadQueue(); // Refresh the queue
             } else {
                 const error = await response.json();
-                alert('Remove failed: ' + (error.message || 'Unknown error'));
+                this.showError('Remove failed: ' + (error.message || 'Unknown error'));
             }
         } catch (error) {
-            alert('Remove failed: ' + error.message);
+            this.showError('Remove failed: ' + error.message);
         }
     }
     
@@ -247,7 +255,7 @@ class QueueManager {
             // First check if output file exists, if not generate it
             const fileObj = this.files.find(f => f.id === fileId);
             if (!fileObj) {
-                alert('File not found');
+                this.showError('File not found');
                 return;
             }
             
@@ -275,7 +283,7 @@ class QueueManager {
                     fileObj.output_size = result.output_size;
                     
                     // Refresh the display
-                    this.updateFileCard(fileObj);
+                    this.loadQueue();
                 } else {
                     const error = await response.json();
                     throw new Error(error.error || 'Failed to generate output');
@@ -292,7 +300,7 @@ class QueueManager {
             
         } catch (error) {
             console.error('Download failed:', error);
-            alert('Download failed: ' + error.message);
+            this.showError('Download failed: ' + error.message);
         }
     }
     
@@ -300,12 +308,12 @@ class QueueManager {
         try {
             const fileObj = this.files.find(f => f.id === fileId);
             if (!fileObj) {
-                alert('File not found');
+                this.showError('File not found');
                 return;
             }
             
             if (!fileObj.selected_artwork) {
-                alert('Please select artwork first');
+                this.showError('Please select artwork first');
                 return;
             }
             
@@ -332,7 +340,7 @@ class QueueManager {
                 fileObj.status = 'completed';
                 
                 // Refresh the display
-                this.updateFileCard(fileObj);
+                this.loadQueue();
                 
             } else {
                 const error = await response.json();
@@ -341,7 +349,7 @@ class QueueManager {
             
         } catch (error) {
             console.error('Generate output failed:', error);
-            alert('Generate output failed: ' + error.message);
+            this.showError('Generate output failed: ' + error.message);
             
             const generateBtn = document.querySelector(`[data-file-id="${fileId}"] .btn-success`);
             if (generateBtn) {
