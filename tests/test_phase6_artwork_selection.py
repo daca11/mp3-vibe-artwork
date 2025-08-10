@@ -231,10 +231,10 @@ class TestArtworkEndpoints:
             
             assert selected_art is not None, "Artwork was not selected"
             assert selected_art['id'] == artwork_id
-            assert 'optimized_path' in selected_art and selected_art['optimized_path'] is not None
-            assert os.path.exists(selected_art['optimized_path'])
-            assert selected_art['optimized_dimensions']['width'] <= 500
-            assert selected_art['optimized_dimensions']['height'] <= 500
+            
+            # Verify that the original artwork is selected and not optimized at this stage
+            assert 'optimized_path' not in selected_art or selected_art['optimized_path'] is None
+            assert selected_art['image_path'] is not None
 
     def test_compare_artwork_nonexistent_file(self, client):
         """Test artwork comparison for non-existent file"""

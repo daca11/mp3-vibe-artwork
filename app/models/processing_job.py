@@ -15,7 +15,6 @@ class ProcessingStep(Enum):
     EXTRACTING_METADATA = "extracting_metadata"
     EXTRACTING_ARTWORK = "extracting_artwork"
     SEARCHING_MUSICBRAINZ = "searching_musicbrainz"
-    OPTIMIZING_ARTWORK = "optimizing_artwork"
     WAITING_USER_SELECTION = "waiting_user_selection"
     EMBEDDING_ARTWORK = "embedding_artwork"
     GENERATING_OUTPUT = "generating_output"
@@ -45,7 +44,6 @@ class ProcessingJob:
             ProcessingStep.EXTRACTING_METADATA: 15,
             ProcessingStep.EXTRACTING_ARTWORK: 20,
             ProcessingStep.SEARCHING_MUSICBRAINZ: 25,
-            ProcessingStep.OPTIMIZING_ARTWORK: 15,
             ProcessingStep.WAITING_USER_SELECTION: 0,  # User interaction, no progress
             ProcessingStep.EMBEDDING_ARTWORK: 10,
             ProcessingStep.GENERATING_OUTPUT: 10,
@@ -187,46 +185,8 @@ class ProcessingJob:
             except Exception as e:
                 current_app.logger.error(f"Unexpected error during MusicBrainz search: {e}")
                 self.musicbrainz_artwork = []
-            
-            # Step 5: Optimize artwork
-            self.update_step(ProcessingStep.OPTIMIZING_ARTWORK)
-            queue.update_file(self.file_id, progress=self.progress_percent)
-            
-            # Optimize embedded artwork if needed
-            from app.services.image_optimizer import ImageOptimizer, ImageOptimizationError
-            optimizer = ImageOptimizer()
-            
-            optimized_artwork = []
-            for artwork in self.embedded_artwork:
-                try:
-                    if artwork.get('needs_optimization', False):
-                        current_app.logger.info(f"Optimizing embedded artwork: {artwork['image_path']}")
-                        optimization_result = optimizer.optimize_image(
-                            artwork['image_path'],
-                            target_format='JPEG',
-                            quality=90
-                        )
-                        
-                        # Update artwork info with optimized version
-                        artwork.update({
-                            'optimized_path': optimization_result['output_path'],
-                            'optimized_dimensions': optimization_result['final_dimensions'],
-                            'optimized_size': optimization_result['final_size'],
-                            'optimization_result': optimization_result
-                        })
-                        
-                        current_app.logger.info(f"Artwork optimized: {optimization_result['size_reduction']} bytes saved")
-                    else:
-                        current_app.logger.info(f"Artwork already meets requirements: {artwork['image_path']}")
-                        
-                    optimized_artwork.append(artwork)
-                    
-                except ImageOptimizationError as e:
-                    current_app.logger.error(f"Failed to optimize artwork: {e}")
-                    # Keep original artwork even if optimization fails
-                    optimized_artwork.append(artwork)
-            
-            self.embedded_artwork = optimized_artwork
+
+            # Artwork is no longer optimized here. This will be handled during output generation.
             
             # Update final status - ready for user selection
             self.update_step(ProcessingStep.WAITING_USER_SELECTION)

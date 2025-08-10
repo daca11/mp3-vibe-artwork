@@ -20,6 +20,7 @@ class Config:
     MAX_ARTWORK_HEIGHT = 500
     MAX_ARTWORK_SIZE = 500 * 1024  # 500KB
     ALLOWED_ARTWORK_FORMATS = ['JPEG', 'PNG']
+    OPTIMIZE_ON_SELECTION = True
     
     # MusicBrainz API settings
     MUSICBRAINZ_RATE_LIMIT = 1.0  # seconds between requests

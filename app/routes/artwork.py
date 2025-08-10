@@ -97,16 +97,7 @@ def get_artwork_preview(file_id, artwork_id):
         if not os.path.exists(image_path):
             return jsonify({'error': 'Image file not found'}), 404
         
-        # Create thumbnail if requested
-        thumbnail = request.args.get('thumbnail', 'false').lower() == 'true'
-        if thumbnail:
-            optimizer = ImageOptimizer()
-            try:
-                thumbnail_path = optimizer.create_thumbnail(image_path)
-                return send_file(thumbnail_path, mimetype='image/jpeg')
-            except Exception as e:
-                current_app.logger.error(f"Failed to create thumbnail: {str(e)}")
-                # Fall back to original image
+        # Always serve the original image, do not create thumbnails
         
         # Determine MIME type
         mime_type = 'image/jpeg'
@@ -146,29 +137,9 @@ def select_artwork(file_id):
         if not selected_artwork_obj:
             return jsonify({'error': 'Artwork not found'}), 404
 
-        # If the selected artwork is from MusicBrainz, we don't need to optimize
-        if selected_artwork_obj['source'] != 'musicbrainz':
-            # Check if optimization is needed before selecting
-            optimizer = ImageOptimizer()
-            image_info = optimizer.get_image_info(selected_artwork_obj['image_path'])
+        # The optimization logic will be handled by the MP3OutputService during output generation.
+        # No need to optimize here.
 
-            if image_info.get('needs_optimization', False):
-                try:
-                    # Optimize the image
-                    optimization_result = optimizer.optimize_image(selected_artwork_obj['image_path'])
-                    
-                    # Update the artwork object with optimization data
-                    selected_artwork_obj['optimized_path'] = optimization_result['output_path']
-                    selected_artwork_obj['optimized_dimensions'] = optimization_result['final_dimensions']
-                    selected_artwork_obj['optimized_size'] = optimization_result['final_size']
-                    selected_artwork_obj['needs_optimization'] = False # Mark as optimized
-                    
-                    current_app.logger.info(f"Optimized artwork {artwork_id} for file {file_obj.filename}")
-
-                except Exception as e:
-                    current_app.logger.error(f"Failed to optimize artwork {artwork_id} on selection: {str(e)}")
-                    # Continue without optimization if it fails
-        
         # Now, select the artwork (which may have been updated)
         if file_obj.select_artwork(artwork_id):
             # Save the queue with the selection

@@ -22,7 +22,38 @@ class ImageOptimizer:
         self.max_height = current_app.config.get('MAX_ARTWORK_HEIGHT', 500)
         self.max_file_size = current_app.config.get('MAX_ARTWORK_SIZE', 500 * 1024)  # 500KB
         self.allowed_formats = current_app.config.get('ALLOWED_ARTWORK_FORMATS', ['JPEG', 'PNG'])
+        self.optimize_on_selection = current_app.config.get('OPTIMIZE_ON_SELECTION', True)
     
+    def optimize_artwork_selection(self, artwork_path):
+        """
+        Optimize a selected artwork image before embedding.
+        This is called only when OPTIMIZE_ON_SELECTION is True.
+        """
+        if not self.optimize_on_selection:
+            return {
+                'success': True,
+                'output_path': artwork_path,
+                'message': 'Optimization on selection is disabled.'
+            }
+
+        try:
+            # Generate a temporary path for the optimized image
+            temp_path = self._generate_temp_path('JPEG')
+
+            # Perform optimization
+            result = self.optimize_image(
+                input_path=artwork_path,
+                output_path=temp_path,
+                target_format='JPEG',
+                quality=95
+            )
+            
+            return result
+
+        except ImageOptimizationError as e:
+            current_app.logger.error(f"Failed to optimize selected artwork {artwork_path}: {e}")
+            raise
+
     def optimize_image(self, input_path, output_path=None, target_format='JPEG', quality=95):
         """
         Optimize an image according to the requirements:
@@ -153,35 +184,6 @@ class ImageOptimizer:
         )
         temp_file.close()
         return temp_file.name
-    
-    def create_thumbnail(self, input_path, thumbnail_path=None, size=(150, 150)):
-        """Create thumbnail for preview purposes"""
-        try:
-            with Image.open(input_path) as img:
-                # Create thumbnail maintaining aspect ratio
-                img_copy = img.copy()
-                img_copy.thumbnail(size, Image.Resampling.LANCZOS)
-                
-                if thumbnail_path is None:
-                    thumbnail_path = self._generate_temp_path('JPEG')
-                
-                # Save as JPEG for thumbnails
-                if img_copy.mode in ('RGBA', 'LA', 'P'):
-                    background = Image.new('RGB', img_copy.size, (255, 255, 255))
-                    if img_copy.mode == 'P':
-                        img_copy = img_copy.convert('RGBA')
-                    background.paste(img_copy, mask=img_copy.split()[-1] if img_copy.mode == 'RGBA' else None)
-                    img_copy = background
-                
-                img_copy.save(thumbnail_path, 'JPEG', quality=85, optimize=True)
-                
-                current_app.logger.info(f"Created thumbnail: {thumbnail_path}")
-                return thumbnail_path
-                
-        except Exception as e:
-            error_msg = f"Thumbnail creation failed for {input_path}: {str(e)}"
-            current_app.logger.error(error_msg)
-            raise ImageOptimizationError(error_msg)
     
     def get_image_info(self, image_path):
         """Get detailed information about an image"""

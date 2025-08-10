@@ -12,6 +12,7 @@ from PIL import Image
 import mimetypes
 from app.utils.safe_filename import safe_filename
 import requests
+from app.services.image_optimizer import ImageOptimizer, ImageOptimizationError
 
 
 class MP3OutputError(Exception):
@@ -23,7 +24,7 @@ class MP3OutputService:
     """Service for creating output MP3 files with embedded artwork"""
     
     def __init__(self):
-        pass
+        self.image_optimizer = ImageOptimizer()
     
     def embed_artwork(self, mp3_file_path, artwork_path, output_path=None, preserve_metadata=True):
         """
@@ -44,6 +45,17 @@ class MP3OutputService:
             
             if not os.path.exists(artwork_path):
                 raise MP3OutputError(f"Artwork file not found: {artwork_path}")
+
+            # Optimize the selected artwork before embedding
+            try:
+                optimization_result = self.image_optimizer.optimize_artwork_selection(artwork_path)
+                if optimization_result['success']:
+                    artwork_path = optimization_result['output_path']
+                    current_app.logger.info(f"Artwork optimized successfully: {artwork_path}")
+                else:
+                    current_app.logger.warning(f"Artwork optimization skipped or failed: {optimization_result.get('message', 'No message')}")
+            except ImageOptimizationError as e:
+                current_app.logger.error(f"Artwork optimization failed, proceeding with original artwork. Error: {e}")
             
             # Generate output path if not provided
             if output_path is None:

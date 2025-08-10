@@ -187,21 +187,6 @@ class TestImageOptimizer:
                 assert img.format == 'JPEG'
                 assert img.mode == 'RGB'  # Should be converted from RGBA
     
-    def test_create_thumbnail(self, app, large_test_image):
-        """Test creating thumbnail"""
-        with app.app_context():
-            optimizer = ImageOptimizer()
-            
-            thumbnail_path = optimizer.create_thumbnail(large_test_image)
-            
-            assert os.path.exists(thumbnail_path)
-            
-            # Check thumbnail dimensions
-            with Image.open(thumbnail_path) as thumb:
-                assert thumb.width <= 150
-                assert thumb.height <= 150
-                assert thumb.format == 'JPEG'
-    
     def test_validate_image_valid(self, app, small_test_image):
         """Test validating a valid image"""
         with app.app_context():
