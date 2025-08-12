@@ -252,7 +252,6 @@ class QueueManager {
     
     async downloadFile(fileId) {
         try {
-            // First check if output file exists, if not generate it
             const fileObj = this.files.find(f => f.id === fileId);
             if (!fileObj) {
                 this.showError('File not found');
@@ -260,8 +259,7 @@ class QueueManager {
             }
             
             if (!fileObj.output_path) {
-                // Generate output file first
-                const generateBtn = document.querySelector(`[data-file-id="${fileId}"] .btn-success`);
+                const generateBtn = document.querySelector(`button[onclick="queueManager.downloadFile('${fileId}')"]`);
                 if (generateBtn) {
                     generateBtn.disabled = true;
                     generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating...';
@@ -275,87 +273,18 @@ class QueueManager {
                 });
                 
                 if (response.ok) {
-                    const result = await response.json();
-                    this.showSuccess(`Output generated for ${fileObj.filename}`);
-                    
-                    // Update file object
-                    fileObj.output_path = result.output_filename;
-                    fileObj.output_size = result.output_size;
-                    
-                    // Refresh the display
-                    this.loadQueue();
+                    await this.loadQueue();
                 } else {
                     const error = await response.json();
                     throw new Error(error.error || 'Failed to generate output');
                 }
-                
-                if (generateBtn) {
-                    generateBtn.disabled = false;
-                    generateBtn.innerHTML = '<i class="fas fa-download me-1"></i>Download';
-                }
             }
             
-            // Download the file
             window.open(`/api/download/${fileId}`, '_blank');
             
         } catch (error) {
             console.error('Download failed:', error);
             this.showError('Download failed: ' + error.message);
-        }
-    }
-    
-    async generateOutput(fileId) {
-        try {
-            const fileObj = this.files.find(f => f.id === fileId);
-            if (!fileObj) {
-                this.showError('File not found');
-                return;
-            }
-            
-            if (!fileObj.selected_artwork) {
-                this.showError('Please select artwork first');
-                return;
-            }
-            
-            const generateBtn = document.querySelector(`[data-file-id="${fileId}"] .btn-success`);
-            if (generateBtn) {
-                generateBtn.disabled = true;
-                generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating...';
-            }
-            
-            const response = await fetch(`/api/output/${fileId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (response.ok) {
-                const result = await response.json();
-                this.showSuccess(`Output generated: ${result.output_filename}`);
-                
-                // Update file object
-                fileObj.output_path = result.output_filename;
-                fileObj.output_size = result.output_size;
-                fileObj.status = 'completed';
-                
-                // Refresh the display
-                this.loadQueue();
-                
-            } else {
-                const error = await response.json();
-                throw new Error(error.error || 'Failed to generate output');
-            }
-            
-        } catch (error) {
-            console.error('Generate output failed:', error);
-            this.showError('Generate output failed: ' + error.message);
-            
-            const generateBtn = document.querySelector(`[data-file-id="${fileId}"] .btn-success`);
-            if (generateBtn) {
-                generateBtn.disabled = false;
-                generateBtn.innerHTML = '<i class="fas fa-download me-1"></i>Download';
-            }
         }
     }
     
