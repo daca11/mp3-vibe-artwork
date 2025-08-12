@@ -350,7 +350,7 @@ class TestOutputIntegration:
             mock_process.return_value = {
                 'success': True,
                 'output_path': '/tmp/output.mp3',
-                'output_filename': 'test_with_artwork.mp3',
+                'output_filename': 'test.mp3',
                 'original_size': 1000000,
                 'output_size': 1150000,
                 'artwork_embedded': True

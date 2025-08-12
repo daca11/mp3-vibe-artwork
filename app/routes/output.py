@@ -75,7 +75,7 @@ def generate_batch_output():
     try:
         data = request.get_json(silent=True) or {}
         file_ids = data.get('file_ids', [])
-        output_pattern = data.get('output_pattern', '{filename}_with_artwork.mp3')
+        output_pattern = data.get('output_pattern', '{filename}.mp3')
         create_zip = data.get('create_zip', False)
         
         if not file_ids:

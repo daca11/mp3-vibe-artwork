@@ -113,6 +113,8 @@ tmp/
 *.flac
 *.m4a
 *.aac
+!tests/*.mp3
+
 
 # Image files (except those in static assets)
 *.jpg

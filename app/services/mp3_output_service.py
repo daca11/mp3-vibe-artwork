@@ -62,7 +62,7 @@ class MP3OutputService:
             if output_path is None:
                 temp_file = tempfile.NamedTemporaryFile(
                     delete=False,
-                    suffix='_with_artwork.mp3',
+                    suffix='.mp3',
                     dir=current_app.config['OUTPUT_FOLDER']
                 )
                 output_path = temp_file.name
@@ -219,8 +219,7 @@ class MP3OutputService:
 
                 # Generate output filename
                 if output_filename is None:
-                    base_name = os.path.splitext(file_obj.filename)[0]
-                    output_filename = f"{base_name}_with_artwork.mp3"
+                    output_filename = file_obj.filename
                 
                 output_filename = safe_filename(output_filename)
                 output_path = os.path.join(current_app.config['OUTPUT_FOLDER'], output_filename)
