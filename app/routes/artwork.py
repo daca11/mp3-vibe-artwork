@@ -150,8 +150,7 @@ def select_artwork(file_id):
             return jsonify({
                 'message': 'Artwork selected successfully',
                 'file_id': file_id,
-                'selected_artwork_id': artwork_id,
-                'selected_artwork': file_obj.selected_artwork
+                'selected_artwork_id': artwork_id
             }), 200
         else:
             return jsonify({'error': 'Artwork not found'}), 404
