@@ -61,6 +61,29 @@ def remove_file_from_queue(file_id):
         return jsonify({'error': 'Failed to remove file'}), 500
 
 
+@bp.route('/queue/clear', methods=['DELETE'])
+def clear_queue():
+    """Clear the entire processing queue"""
+    try:
+        queue = get_queue()
+        
+        # Prevent clearing if any file is being processed
+        if any(f.status == FileStatus.PROCESSING for f in queue.get_all_files()):
+            return jsonify({'error': 'Cannot clear queue while files are being processed'}), 400
+
+        cleared_count = queue.clear_queue()
+        current_app.logger.info(f"Cleared {cleared_count} files from the queue")
+        
+        return jsonify({
+            'message': 'Queue cleared successfully',
+            'cleared_count': cleared_count
+        }), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Clear queue error: {str(e)}")
+        return jsonify({'error': 'Failed to clear queue'}), 500
+
+
 @bp.route('/process/<file_id>', methods=['POST'])
 def process_file(file_id):
     """Start processing a specific file"""

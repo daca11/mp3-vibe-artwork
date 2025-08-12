@@ -3,6 +3,8 @@ class QueueManager {
     constructor() {
         this.refreshBtn = document.getElementById('refresh-queue');
         this.processAllBtn = document.getElementById('process-all');
+        this.clearQueueBtn = document.getElementById('clear-queue');
+        this.downloadAllBtn = document.getElementById('download-all');
         this.queueEmpty = document.getElementById('queue-empty');
         this.queueTable = document.getElementById('queue-table');
         this.queueTbody = document.getElementById('queue-tbody');
@@ -18,6 +20,8 @@ class QueueManager {
     initEventListeners() {
         this.refreshBtn.addEventListener('click', () => this.loadQueue());
         this.processAllBtn.addEventListener('click', () => this.processAll());
+        this.clearQueueBtn.addEventListener('click', () => this.clearQueue());
+        this.downloadAllBtn.addEventListener('click', () => this.downloadAll());
     }
     
     async loadQueue() {
@@ -40,12 +44,21 @@ class QueueManager {
             this.queueEmpty.style.display = 'block';
             this.queueTable.style.display = 'none';
             this.processAllBtn.disabled = true;
+            this.clearQueueBtn.disabled = true;
+            this.downloadAllBtn.disabled = true;
             return;
         }
         
         this.queueEmpty.style.display = 'none';
         this.queueTable.style.display = 'block';
-        this.processAllBtn.disabled = false;
+        
+        const hasPending = queue.some(file => file.status === 'pending');
+        this.processAllBtn.disabled = !hasPending;
+        
+        const hasCompleted = queue.some(file => file.status === 'completed');
+        this.downloadAllBtn.disabled = !hasCompleted;
+
+        this.clearQueueBtn.disabled = false;
         
         this.queueTbody.innerHTML = '';
         
@@ -245,6 +258,28 @@ class QueueManager {
         }
     }
     
+    async clearQueue() {
+        if (!confirm('Are you sure you want to clear the entire queue? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/queue/clear', {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                this.showSuccess('Queue cleared successfully.');
+                this.loadQueue(); // Refresh the queue
+            } else {
+                const error = await response.json();
+                this.showError('Failed to clear queue: ' + (error.message || 'Unknown error'));
+            }
+        } catch (error) {
+            this.showError('Failed to clear queue: ' + error.message);
+        }
+    }
+
     selectArtwork(fileId) {
         // Navigate to artwork selection page
         window.location.href = `/artwork-selection?file_id=${fileId}`;
@@ -286,6 +321,10 @@ class QueueManager {
             console.error('Download failed:', error);
             this.showError('Download failed: ' + error.message);
         }
+    }
+
+    downloadAll() {
+        window.open('/api/download/all', '_blank');
     }
     
     destroy() {

@@ -211,10 +211,11 @@ class FileQueue:
         """Get files by status"""
         return [f for f in self._queue.values() if f.status == status]
 
-    def clear(self):
-        """Clear the entire queue"""
+    def clear_queue(self):
+        """Clear the entire queue and return the number of files cleared."""
         # Get all file IDs before clearing
         file_ids = list(self._queue.keys())
+        cleared_count = len(file_ids)
         
         # Remove each file individually to trigger cleanup
         for file_id in file_ids:
@@ -223,6 +224,7 @@ class FileQueue:
         # Ensure the queue is empty
         self._queue.clear()
         self._save_queue()
+        return cleared_count
     
     def update_file(self, file_id, **kwargs):
         """Update file properties"""

@@ -235,7 +235,7 @@ class TestQueueEndpoints:
         """Clear the queue before each test"""
         from app.models.file_queue import get_queue
         queue = get_queue()
-        queue.clear()
+        queue.clear_queue()
 
     def test_get_queue_empty(self, client):
         """Test getting empty queue"""
