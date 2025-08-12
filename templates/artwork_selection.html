@@ -376,11 +376,8 @@ class ArtworkSelector {
             });
             
             if (response.ok) {
-                this.showSuccess('Artwork selection applied successfully! Proceeding to final step...');
-                
-                // Now trigger the output generation
-                this.generateOutput();
-
+                this.showSuccess('Artwork selection applied successfully! Redirecting to queue...');
+                setTimeout(() => this.backToQueue(), 1500);
             } else {
                 const error = await response.json();
                 throw new Error(error.message || 'Failed to apply selection');
@@ -397,6 +394,8 @@ class ArtworkSelector {
     }
 
     async generateOutput() {
+        // This function is no longer called from applySelection, 
+        // but kept for potential future use or alternative flows.
         try {
             const response = await fetch(`/api/output/${this.fileId}`, {
                 method: 'POST',
@@ -485,4 +484,5 @@ document.addEventListener('DOMContentLoaded', () => {
     window.artworkSelector = new ArtworkSelector();
 });
 </script>
+<script src="{{ url_for('static', filename='js/artwork.js', v='1.0.1') }}"></script>
 {% endblock %}
