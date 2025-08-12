@@ -376,9 +376,7 @@ class ArtworkSelector {
             });
             
             if (response.ok) {
-                this.showSuccess('Artwork selection applied successfully! Returning to queue...');
-                setTimeout(() => this.backToQueue(), 2000);
-
+                this.backToQueue();
             } else {
                 const error = await response.json();
                 throw new Error(error.message || 'Failed to apply selection');
@@ -394,36 +392,6 @@ class ArtworkSelector {
         }
     }
 
-    async generateOutput() {
-        try {
-            const response = await fetch(`/api/output/${this.fileId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    artwork_id: this.selectedArtworkId
-                })
-            });
-
-            if (response.ok) {
-                 this.showSuccess('File is being processed! Redirecting to queue...');
-                 setTimeout(() => this.backToQueue(), 2000);
-
-            } else {
-                const error = await response.json();
-                throw new Error(error.message || 'Failed to generate output file');
-            }
-        } catch (error) {
-            console.error('Error generating output:', error);
-            this.showError('Failed to generate output: ' + error.message);
-            // Re-enable apply button if output generation fails
-            const applyBtn = document.getElementById('apply-selection');
-            applyBtn.disabled = false;
-            applyBtn.innerHTML = '<i class="fas fa-check me-1"></i>Apply Selection';
-        }
-    }
-    
     backToQueue() {
         window.location.href = '/queue';
     }
@@ -438,13 +406,6 @@ class ArtworkSelector {
         const alert = document.createElement('div');
         alert.className = 'alert alert-danger';
         alert.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>${message}`;
-        document.querySelector('main.container').insertBefore(alert, document.querySelector('.row'));
-    }
-    
-    showSuccess(message) {
-        const alert = document.createElement('div');
-        alert.className = 'alert alert-success';
-        alert.innerHTML = `<i class="fas fa-check me-2"></i>${message}`;
         document.querySelector('main.container').insertBefore(alert, document.querySelector('.row'));
     }
     
