@@ -10,20 +10,50 @@ bp = Blueprint('download', __name__, url_prefix='/api')
 
 @bp.route('/download/all', methods=['GET'])
 def download_all_completed():
-    """Download all completed files as a single zip archive"""
+    """
+    Generates a zip archive of all completed files.
+    If output files are missing, it attempts to generate them first.
+    """
     try:
         queue = get_queue()
-        # Filter for files that are complete AND have an output path
-        files_to_zip = [f for f in queue.get_all_files() if f.status == FileStatus.COMPLETED and f.output_path and os.path.exists(f.output_path)]
+        completed_files = queue.get_files_by_status(FileStatus.COMPLETED)
 
-        if not files_to_zip:
-            return Response("No downloadable files found. Please generate the output files first.", status=404, mimetype='text/plain')
+        if not completed_files:
+            return Response("No completed files to download.", status=404, mimetype='text/plain')
 
+        output_service = MP3OutputService()
         memory_file = io.BytesIO()
+
         with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for file_obj in files_to_zip:
-                arcname = os.path.basename(file_obj.filename)
-                zf.write(file_obj.output_path, arcname=arcname)
+            for file_obj in completed_files:
+                try:
+                    # If output path doesn't exist or file is not on disk, generate it
+                    if not file_obj.output_path or not os.path.exists(file_obj.output_path):
+                        if not file_obj.selected_artwork:
+                            current_app.logger.warning(f"No artwork selected for {file_obj.filename}, skipping for zip.")
+                            continue
+                        
+                        current_app.logger.info(f"Generating output for {file_obj.filename} before zipping.")
+                        result = output_service.process_file_with_selection(file_obj)
+                        
+                        # Update file object in queue with new path
+                        file_obj.output_path = result['output_path']
+                        queue.update_file(file_obj.id, output_path=result['output_path'])
+
+                    # Add to zip if path is valid now
+                    if file_obj.output_path and os.path.exists(file_obj.output_path):
+                        arcname = os.path.basename(file_obj.filename)
+                        zf.write(file_obj.output_path, arcname=arcname)
+                    else:
+                        current_app.logger.warning(f"Output file for {file_obj.filename} could not be generated or found, skipping.")
+                
+                except MP3OutputError as e:
+                    current_app.logger.error(f"Failed to generate output for {file_obj.filename} during zip creation: {str(e)}")
+                    zf.writestr(f"{os.path.basename(file_obj.filename)}-ERROR.txt", f"Failed to process this file: {str(e)}")
+
+        # Check if the zip file is empty
+        if not zf.namelist():
+             return Response("No files could be prepared for download. Check logs for errors.", status=404, mimetype='text/plain')
 
         memory_file.seek(0)
         
