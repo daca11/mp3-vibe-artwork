@@ -269,7 +269,6 @@ class QueueManager {
             });
 
             if (response.ok) {
-                this.showSuccess('Queue cleared successfully.');
                 this.loadQueue(); // Refresh the queue
             } else {
                 const error = await response.json();
