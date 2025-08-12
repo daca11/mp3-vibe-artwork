@@ -292,7 +292,8 @@ class QueueManager {
                 return;
             }
             
-            if (!fileObj.output_path) {
+            // If output path doesn't exist, generate it first
+            if (!fileObj.output_path || !fileObj.output_path.trim()) {
                 const generateBtn = document.querySelector(`button[onclick="queueManager.downloadFile('${fileId}')"]`);
                 if (generateBtn) {
                     generateBtn.disabled = true;
@@ -301,29 +302,77 @@ class QueueManager {
                 
                 const response = await fetch(`/api/output/${fileId}`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
+                    headers: { 'Content-Type': 'application/json' }
                 });
                 
                 if (response.ok) {
-                    await this.loadQueue();
+                    // Refresh the queue to get the new output_path
+                    await this.loadQueue(); 
                 } else {
                     const error = await response.json();
-                    throw new Error(error.error || 'Failed to generate output');
+                    this.showError(`Failed to generate file: ${error.error || 'Unknown error'}`);
+                    await this.loadQueue(); // Refresh even on error
+                    return;
                 }
             }
             
-            window.open(`/api/download/${fileId}`, '_blank');
+            // Re-check after generation attempt
+            const updatedFileObj = this.files.find(f => f.id === fileId);
+            if (updatedFileObj && updatedFileObj.output_path) {
+                window.open(`/api/download/${fileId}`, '_blank');
+            } else {
+                this.showError('File generation did not complete. Please try again.');
+            }
             
         } catch (error) {
             console.error('Download failed:', error);
             this.showError('Download failed: ' + error.message);
+            await this.loadQueue();
         }
     }
 
-    downloadAll() {
-        window.open('/api/download/all', '_blank');
+    async downloadAll() {
+        try {
+            // Step 1: Tell the backend to generate all missing output files
+            this.downloadAllBtn.disabled = true;
+            this.downloadAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating...';
+
+            const fileIdsToGenerate = this.files
+                .filter(f => f.status === 'completed' && (!f.output_path || !f.output_path.trim()))
+                .map(f => f.id);
+
+            if (fileIdsToGenerate.length > 0) {
+                const response = await fetch('/api/output/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file_ids: fileIdsToGenerate })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(`Batch generation failed: ${error.error || 'Unknown error'}`);
+                }
+            }
+
+            // Step 2: Refresh queue and then trigger download
+            await this.loadQueue();
+            
+            // Check if there are any downloadable files
+            const hasDownloadableFiles = this.files.some(f => f.status === 'completed' && f.output_path);
+
+            if (hasDownloadableFiles) {
+                window.open('/api/download/all', '_blank');
+            } else {
+                this.showError('No files were generated. Please check for errors or artwork selections.');
+            }
+
+        } catch (error) {
+            console.error('Download All failed:', error);
+            this.showError(`Download All failed: ${error.message}`);
+        } finally {
+            this.downloadAllBtn.disabled = false;
+            this.downloadAllBtn.innerHTML = '<i class="fas fa-download me-1"></i>Download All';
+        }
     }
     
     destroy() {
