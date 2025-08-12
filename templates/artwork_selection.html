@@ -376,8 +376,9 @@ class ArtworkSelector {
             });
             
             if (response.ok) {
-                this.showSuccess('Artwork selection applied successfully! Redirecting to queue...');
-                setTimeout(() => this.backToQueue(), 1500);
+                this.showSuccess('Artwork selection applied successfully! Returning to queue...');
+                setTimeout(() => this.backToQueue(), 2000);
+
             } else {
                 const error = await response.json();
                 throw new Error(error.message || 'Failed to apply selection');
@@ -394,8 +395,6 @@ class ArtworkSelector {
     }
 
     async generateOutput() {
-        // This function is no longer called from applySelection, 
-        // but kept for potential future use or alternative flows.
         try {
             const response = await fetch(`/api/output/${this.fileId}`, {
                 method: 'POST',
@@ -408,29 +407,8 @@ class ArtworkSelector {
             });
 
             if (response.ok) {
-                // The response should be the MP3 file for download
-                const blob = await response.blob();
-                const contentDisposition = response.headers.get('Content-Disposition');
-                let filename = "downloaded.mp3";
-                if (contentDisposition) {
-                    const filenameMatch = contentDisposition.match(/filename="(.+?)"/);
-                    if (filenameMatch.length > 1) {
-                        filename = filenameMatch[1];
-                    }
-                }
-
-                // Create a temporary link to trigger the download
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                
-                this.showSuccess('File is downloading! Redirecting to queue...');
-                setTimeout(() => this.backToQueue(), 3000);
+                 this.showSuccess('File is being processed! Redirecting to queue...');
+                 setTimeout(() => this.backToQueue(), 2000);
 
             } else {
                 const error = await response.json();
@@ -460,14 +438,14 @@ class ArtworkSelector {
         const alert = document.createElement('div');
         alert.className = 'alert alert-danger';
         alert.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>${message}`;
-        document.querySelector('main .container').insertBefore(alert, document.querySelector('.row'));
+        document.querySelector('main.container').insertBefore(alert, document.querySelector('.row'));
     }
     
     showSuccess(message) {
         const alert = document.createElement('div');
         alert.className = 'alert alert-success';
         alert.innerHTML = `<i class="fas fa-check me-2"></i>${message}`;
-        document.querySelector('main .container').insertBefore(alert, document.querySelector('.row'));
+        document.querySelector('main.container').insertBefore(alert, document.querySelector('.row'));
     }
     
     formatFileSize(bytes) {
@@ -484,5 +462,4 @@ document.addEventListener('DOMContentLoaded', () => {
     window.artworkSelector = new ArtworkSelector();
 });
 </script>
-<script src="{{ url_for('static', filename='js/artwork.js', v='1.0.1') }}"></script>
 {% endblock %}
