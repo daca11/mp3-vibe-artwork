@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, make_response
 
 bp = Blueprint('main', __name__)
 
@@ -15,7 +15,11 @@ def queue():
 @bp.route('/artwork-selection')
 def artwork_selection():
     """Artwork selection page"""
-    return render_template('artwork_selection.html')
+    response = make_response(render_template('artwork_selection.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @bp.route('/health')
 def health():
